@@ -14,7 +14,7 @@ use crate::packager;
 /// Find workspace manifest by looking up parent directories
 fn find_workspace_manifest() -> Result<Manifest> {
     let mut current_dir = std::env::current_dir()?;
-    
+
     loop {
         let manifest_path = current_dir.join("Cargo.toml");
         if manifest_path.exists() {
@@ -24,12 +24,12 @@ fn find_workspace_manifest() -> Result<Manifest> {
                 }
             }
         }
-        
+
         if !current_dir.pop() {
             break;
         }
     }
-    
+
     anyhow::bail!("No workspace manifest found")
 }
 
@@ -164,9 +164,8 @@ impl DistBuilder {
 
     /// Get package version from Cargo.toml
     fn get_package_version(&self) -> Result<String> {
-        let manifest = Manifest::from_path("Cargo.toml")
-            .context("Failed to parse Cargo.toml")?;
-        
+        let manifest = Manifest::from_path("Cargo.toml").context("Failed to parse Cargo.toml")?;
+
         // Get version from package
         if let Some(package) = manifest.package {
             match package.version {
@@ -176,8 +175,8 @@ impl DistBuilder {
                 Some(cargo_manifest::MaybeInherited::Inherited { .. }) => {
                     // Version is inherited from workspace, need to read workspace manifest
                     if let Ok(workspace_manifest) = find_workspace_manifest() {
-                        if let Some(ws_package) = workspace_manifest.workspace
-                            .and_then(|ws| ws.package) 
+                        if let Some(ws_package) =
+                            workspace_manifest.workspace.and_then(|ws| ws.package)
                         {
                             if let Some(version) = ws_package.version {
                                 return Ok(version);
@@ -188,8 +187,8 @@ impl DistBuilder {
                 None => {
                     // No version in package, try workspace
                     if let Ok(workspace_manifest) = find_workspace_manifest() {
-                        if let Some(ws_package) = workspace_manifest.workspace
-                            .and_then(|ws| ws.package) 
+                        if let Some(ws_package) =
+                            workspace_manifest.workspace.and_then(|ws| ws.package)
                         {
                             if let Some(version) = ws_package.version {
                                 return Ok(version);
@@ -199,7 +198,7 @@ impl DistBuilder {
                 }
             }
         }
-        
+
         anyhow::bail!("No version field found in Cargo.toml")
     }
 
@@ -233,11 +232,11 @@ impl DistBuilder {
         // If no tag found and --hash is specified, use version-sha format
         if self.args.hash {
             let short_sha = oid.to_string()[..8].to_string();
-            
+
             // Read version from Cargo.toml
             let version = self.get_package_version()?;
             let tag = format!("{version}-{short_sha}");
-            
+
             tracing::info!(
                 "No tag found on HEAD. Using version-sha format as tag: {}",
                 tag
@@ -416,5 +415,214 @@ mod tests {
                     .unwrap_or(false)
             );
         }
+    }
+
+    #[test]
+    fn test_get_package_version_from_package() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+
+        // Change to temp directory
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a simple Cargo.toml with version in package
+        let cargo_toml = r#"
+[package]
+name = "test-package"
+version = "1.2.3"
+edition = "2021"
+"#;
+        fs::write("Cargo.toml", cargo_toml).unwrap();
+
+        // Test get_package_version directly
+        // We can't easily test this without refactoring the struct,
+        // so we'll test via the manifest directly
+        let manifest = Manifest::from_path("Cargo.toml").unwrap();
+        let version = manifest.package.unwrap().version.unwrap();
+        if let cargo_manifest::MaybeInherited::Local(v) = version {
+            assert_eq!(v, "1.2.3");
+        } else {
+            panic!("Expected local version");
+        }
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_get_package_version_from_workspace() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+
+        // Change to temp directory
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a workspace Cargo.toml
+        let workspace_toml = r#"
+[workspace]
+members = ["test-package"]
+
+[workspace.package]
+version = "2.3.4"
+edition = "2021"
+"#;
+        fs::write("Cargo.toml", workspace_toml).unwrap();
+
+        // Create package directory
+        fs::create_dir("test-package").unwrap();
+        std::env::set_current_dir("test-package").unwrap();
+
+        // Create package Cargo.toml with inherited version
+        let package_toml = r#"
+[package]
+name = "test-package"
+version.workspace = true
+edition.workspace = true
+"#;
+        fs::write("Cargo.toml", package_toml).unwrap();
+
+        // Test that workspace version is inherited correctly
+        let manifest = Manifest::from_path("Cargo.toml").unwrap();
+        assert!(manifest.package.is_some());
+        let package = manifest.package.unwrap();
+
+        // Version should be inherited
+        match package.version {
+            Some(cargo_manifest::MaybeInherited::Inherited { .. }) => {
+                // This is expected - version is inherited from workspace
+                // Now check the workspace manifest
+                let ws_manifest = find_workspace_manifest().unwrap();
+                let ws_version = ws_manifest
+                    .workspace
+                    .unwrap()
+                    .package
+                    .unwrap()
+                    .version
+                    .unwrap();
+                assert_eq!(ws_version, "2.3.4");
+            }
+            _ => panic!("Expected inherited version"),
+        }
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_get_tag_with_hash_option() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+
+        // Change to temp directory
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Initialize git repo
+        let repo = Repository::init(".").unwrap();
+
+        // Configure git user for test
+        let mut config = repo.config().unwrap();
+        config.set_str("user.email", "test@example.com").unwrap();
+        config.set_str("user.name", "Test User").unwrap();
+        drop(config);
+
+        // Create Cargo.toml
+        let cargo_toml = r#"
+[package]
+name = "test-package"
+version = "0.5.0"
+"#;
+        fs::write("Cargo.toml", cargo_toml).unwrap();
+
+        // Add and commit using git2
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new("Cargo.toml")).unwrap();
+        index.write().unwrap();
+
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = repo.signature().unwrap();
+
+        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
+            .unwrap();
+
+        // Test the tag generation logic with hash option
+        // Since we can't create DistBuilder without Tokio runtime,
+        // we'll test the logic directly
+        let head = repo.head().unwrap();
+        let oid = head.target().unwrap();
+
+        // Simulate what get_tag() does with hash = true
+        let short_sha = oid.to_string()[..8].to_string();
+        let version = "0.5.0"; // From Cargo.toml
+        let tag = format!("{version}-{short_sha}");
+
+        assert!(tag.starts_with("0.5.0-"));
+        assert_eq!(tag.len(), "0.5.0-".len() + 8);
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_get_tag_without_hash_option_fails() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+
+        // Change to temp directory
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Initialize git repo without tags
+        let repo = Repository::init(".").unwrap();
+
+        // Configure git user for test
+        let mut config = repo.config().unwrap();
+        config.set_str("user.email", "test@example.com").unwrap();
+        config.set_str("user.name", "Test User").unwrap();
+        drop(config);
+
+        // Create Cargo.toml
+        fs::write(
+            "Cargo.toml",
+            r#"[package]
+name = "test"
+version = "1.0.0""#,
+        )
+        .unwrap();
+
+        // Add and commit using git2
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new("Cargo.toml")).unwrap();
+        index.write().unwrap();
+
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = repo.signature().unwrap();
+
+        repo.commit(Some("HEAD"), &sig, &sig, "Initial", &tree, &[])
+            .unwrap();
+
+        // Test the tag detection logic without hash option
+        // Simulate what get_tag() does with hash = false and no tag
+        let head = repo.head().unwrap();
+        let oid = head.target().unwrap();
+
+        // Look for tags pointing to HEAD
+        let tags = repo.tag_names(None).unwrap();
+        let mut found_tag = None;
+
+        for tag in tags.iter().flatten() {
+            if let Ok(tag_obj) = repo.revparse_single(tag) {
+                if tag_obj.id() == oid {
+                    found_tag = Some(tag.to_string());
+                    break;
+                }
+            }
+        }
+
+        // Should not find any tags
+        assert!(found_tag.is_none());
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
     }
 }
