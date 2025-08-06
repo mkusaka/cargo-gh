@@ -2,10 +2,7 @@ name: Continuous Release
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - feat/cargo-gh-subcommands  # Testing branch
+    # Trigger on all branches
   workflow_dispatch:  # Allow manual trigger
 
 permissions:
