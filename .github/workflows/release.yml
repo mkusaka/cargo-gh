@@ -181,7 +181,7 @@ jobs:
   # Get the release tag created by cargo-ghdist
   get-release-tag:
     name: Get Release Tag
-    needs: [prepare-release, release-linux]
+    needs: [prepare-release, release-linux, release-macos, release-windows]
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.find_tag.outputs.tag }}
