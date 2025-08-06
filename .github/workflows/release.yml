@@ -61,12 +61,13 @@ jobs:
       - name: Install cross-compilation tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu pkg-config
           
           # Set up environment for aarch64 cross-compilation
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
 
       - name: Install cargo-ghdist from source
         run: |
@@ -109,6 +110,10 @@ jobs:
           toolchain: 1.88.0
           target: x86_64-apple-darwin,aarch64-apple-darwin
           rustflags: ""
+
+      - name: Set up cross-compilation environment
+        run: |
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
 
       - name: Install cargo-ghdist from source
         run: |
