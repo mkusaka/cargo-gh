@@ -334,34 +334,3 @@ jobs:
           "$TMPDIR/cargo-ghinstall" --version
           "$TMPDIR/cargo-ghdist" --version
 
-  # Success notification
-  release-success:
-    name: Release Success
-    needs: [prepare-release, get-release-tag, test-installation]
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Release summary
-        run: |
-          TAG="${{ needs.get-release-tag.outputs.release_tag }}"
-          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
-          
-          if [ "$IS_CONTINUOUS" = "true" ]; then
-            echo "# 🚀 Continuous Release Completed"
-            echo ""
-            echo "**Release Tag:** ${TAG}"
-            echo "**Commit:** ${{ github.sha }}"
-            echo "**Branch:** ${{ github.ref_name }}"
-          else
-            echo "# 🎉 Tagged Release Completed"
-            echo ""
-            echo "**Release Tag:** ${TAG}"
-          fi
-          
-          echo ""
-          echo "## Installation"
-          echo "\`\`\`bash"
-          echo "cargo ghinstall ${{ github.repository }}@${TAG}"
-          echo "\`\`\`"
-          echo ""
-          echo "**Release URL:** https://github.com/${{ github.repository }}/releases/tag/${TAG}"
