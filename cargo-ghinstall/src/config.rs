@@ -1,13 +1,13 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use anyhow::Result;
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub default: DefaultConfig,
-    
+
     #[serde(default)]
     pub repo: HashMap<String, RepoConfig>,
 }
@@ -16,7 +16,7 @@ pub struct Config {
 pub struct DefaultConfig {
     #[serde(default = "default_install_dir")]
     pub install_dir: String,
-    
+
     #[serde(default = "default_timeout")]
     pub timeout: u64,
 }
@@ -67,7 +67,7 @@ impl Config {
 
     /// Get repository-specific configuration
     pub fn get_repo_config(&self, owner: &str, repo: &str) -> Option<&RepoConfig> {
-        let key = format!("{}/{}", owner, repo);
+        let key = format!("{owner}/{repo}");
         self.repo.get(&key)
     }
 
@@ -83,7 +83,7 @@ impl Config {
             if args.bin.is_none() && repo_config.bin.is_some() {
                 args.bin = repo_config.bin.clone();
             }
-            
+
             if !args.verify_signature && repo_config.verify_signature {
                 args.verify_signature = true;
             }
@@ -94,14 +94,14 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_load_config() {
         let dir = tempdir().unwrap();
         let config_path = dir.path().join("test.toml");
-        
+
         let config_content = r#"
 [default]
 install_dir = "/usr/local/bin"
@@ -112,14 +112,14 @@ bin = "mybin"
 targets = ["x86_64-unknown-linux-gnu"]
 verify_signature = true
 "#;
-        
+
         fs::write(&config_path, config_content).unwrap();
-        
+
         let config = Config::load(&config_path).unwrap();
-        
+
         assert_eq!(config.default.install_dir, "/usr/local/bin");
         assert_eq!(config.default.timeout, 60);
-        
+
         let repo_config = config.get_repo_config("owner", "repo").unwrap();
         assert_eq!(repo_config.bin, Some("mybin".to_string()));
         assert!(repo_config.verify_signature);

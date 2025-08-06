@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum GhInstallError {
     #[error("GitHub API error: {0}")]
     GitHubApi(#[from] octocrab::Error),

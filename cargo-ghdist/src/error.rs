@@ -1,9 +1,10 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum GhDistError {
     #[error("GitHub API error: {0}")]
-    GitHubApi(#[from] octocrab::Error),
+    GitHubApi(Box<octocrab::Error>),
 
     #[error("HTTP request error: {0}")]
     Http(#[from] reqwest::Error),
@@ -37,3 +38,9 @@ pub enum GhDistError {
 }
 
 pub type Result<T> = std::result::Result<T, GhDistError>;
+
+impl From<octocrab::Error> for GhDistError {
+    fn from(err: octocrab::Error) -> Self {
+        GhDistError::GitHubApi(Box::new(err))
+    }
+}

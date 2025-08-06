@@ -1,16 +1,16 @@
+mod builder;
 mod cli;
 mod config;
-mod builder;
+mod error;
 mod github;
 mod packager;
-mod error;
 
 use anyhow::Result;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-use crate::cli::Args;
 use crate::builder::DistBuilder;
+use crate::cli::Args;
 
 #[tokio::main]
 async fn main() -> Result<()> {

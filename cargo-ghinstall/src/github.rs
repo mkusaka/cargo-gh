@@ -1,7 +1,7 @@
-use octocrab::{Octocrab, models::repos::Release};
-use reqwest::Client;
-use anyhow::Result;
 use crate::error::{GhInstallError, Result as GhResult};
+use anyhow::Result;
+use octocrab::{models::repos::Release, Octocrab};
+use reqwest::Client;
 
 pub struct GitHubClient {
     octocrab: Octocrab,
@@ -11,13 +11,11 @@ pub struct GitHubClient {
 impl GitHubClient {
     pub fn new() -> Result<Self> {
         let octocrab = if let Ok(token) = std::env::var("GITHUB_TOKEN") {
-            Octocrab::builder()
-                .personal_token(token)
-                .build()?
+            Octocrab::builder().personal_token(token).build()?
         } else {
             Octocrab::builder().build()?
         };
-        
+
         let http_client = Client::builder()
             .user_agent("cargo-ghinstall")
             .timeout(std::time::Duration::from_secs(30))
@@ -30,41 +28,54 @@ impl GitHubClient {
     }
 
     /// Fetch release by tag or get latest release
-    pub async fn get_release(&self, owner: &str, repo: &str, tag: Option<&str>) -> GhResult<Release> {
+    pub async fn get_release(
+        &self,
+        owner: &str,
+        repo: &str,
+        tag: Option<&str>,
+    ) -> GhResult<Release> {
         if let Some(tag) = tag {
             // Fetch specific release by tag
-            match self.octocrab.repos(owner, repo)
+            match self
+                .octocrab
+                .repos(owner, repo)
                 .releases()
                 .get_by_tag(tag)
                 .await
             {
                 Ok(release) => Ok(release),
-                Err(_) => Err(GhInstallError::ReleaseNotFound { 
-                    tag: tag.to_string() 
+                Err(_) => Err(GhInstallError::ReleaseNotFound {
+                    tag: tag.to_string(),
                 }),
             }
         } else {
             // Fetch latest release
-            match self.octocrab.repos(owner, repo)
+            match self
+                .octocrab
+                .repos(owner, repo)
                 .releases()
                 .get_latest()
                 .await
             {
                 Ok(release) => Ok(release),
-                Err(_) => Err(GhInstallError::ReleaseNotFound { 
-                    tag: "latest".to_string() 
+                Err(_) => Err(GhInstallError::ReleaseNotFound {
+                    tag: "latest".to_string(),
                 }),
             }
         }
     }
 
     /// Find matching asset for the target platform
-    pub fn find_asset(release: &Release, target: &str, bin_name: Option<&str>) -> Option<ReleaseAsset> {
+    pub fn find_asset(
+        release: &Release,
+        target: &str,
+        bin_name: Option<&str>,
+    ) -> Option<ReleaseAsset> {
         let bin_name = bin_name.unwrap_or("");
-        
+
         for asset in &release.assets {
             let name = &asset.name;
-            
+
             // Check if asset matches target platform
             if !name.contains(target) {
                 continue;
@@ -93,10 +104,8 @@ impl GitHubClient {
     /// Download asset to a temporary file
     pub async fn download_asset(&self, asset: &ReleaseAsset) -> Result<tempfile::NamedTempFile> {
         tracing::info!("Downloading asset: {}", asset.name);
-        
-        let response = self.http_client.get(&asset.url)
-            .send()
-            .await?;
+
+        let response = self.http_client.get(&asset.url).send().await?;
 
         if !response.status().is_success() {
             anyhow::bail!("Failed to download asset: {}", response.status());
@@ -121,16 +130,17 @@ impl GitHubClient {
 pub struct ReleaseAsset {
     pub name: String,
     pub url: String,
+    #[allow(dead_code)]
     pub size: u64,
 }
 
 /// Check if a filename is a supported archive format
 fn is_archive(name: &str) -> bool {
-    name.ends_with(".tar.gz") || 
-    name.ends_with(".tgz") || 
-    name.ends_with(".zip") ||
-    name.ends_with(".tar.xz") ||
-    name.ends_with(".tar.bz2")
+    name.ends_with(".tar.gz")
+        || name.ends_with(".tgz")
+        || name.ends_with(".zip")
+        || name.ends_with(".tar.xz")
+        || name.ends_with(".tar.bz2")
 }
 
 #[cfg(test)]

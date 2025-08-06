@@ -1,4 +1,4 @@
-use cargo_ghdist::cli::{Args, ArchiveFormat};
+use cargo_ghdist::cli::{ArchiveFormat, Args};
 
 #[test]
 fn test_targets_default() {

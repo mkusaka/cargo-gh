@@ -107,7 +107,7 @@ impl Args {
             // Try to read from Cargo.toml
             let cargo_toml = std::fs::read_to_string("Cargo.toml")?;
             let manifest: toml::Value = toml::from_str(&cargo_toml)?;
-            
+
             let repo_url = manifest
                 .get("package")
                 .and_then(|p| p.get("repository"))
@@ -122,7 +122,7 @@ impl Args {
                     return Ok((parts[0].to_string(), parts[1].to_string()));
                 }
             }
-            
+
             anyhow::bail!("Could not parse repository from Cargo.toml")
         }
     }

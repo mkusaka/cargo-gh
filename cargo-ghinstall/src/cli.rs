@@ -66,7 +66,7 @@ impl Args {
     /// Parse repository string to extract owner, repo, and optional tag
     pub fn parse_repo(&self) -> anyhow::Result<(String, String, Option<String>)> {
         let repo_str = &self.repo;
-        
+
         // Check if tag is specified with @
         let (repo_part, tag_part) = if let Some(idx) = repo_str.rfind('@') {
             let repo = &repo_str[..idx];
@@ -95,7 +95,9 @@ impl Args {
     pub fn install_dir(&self) -> PathBuf {
         let path = &self.install_dir;
         if path.starts_with("~") {
-            if let Some(home) = directories::BaseDirs::new().and_then(|dirs| Some(dirs.home_dir().to_path_buf())) {
+            if let Some(home) =
+                directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf())
+            {
                 let rest = path.strip_prefix("~").unwrap_or(path);
                 let rest = rest.strip_prefix('/').unwrap_or(rest);
                 return home.join(rest);
@@ -110,7 +112,7 @@ impl Args {
             // Construct target triple for current platform
             let arch = std::env::consts::ARCH;
             let os = std::env::consts::OS;
-            
+
             match (arch, os) {
                 ("x86_64", "linux") => "x86_64-unknown-linux-gnu",
                 ("x86_64", "macos") => "x86_64-apple-darwin",
@@ -118,8 +120,9 @@ impl Args {
                 ("aarch64", "linux") => "aarch64-unknown-linux-gnu",
                 ("aarch64", "macos") => "aarch64-apple-darwin",
                 ("aarch64", "windows") => "aarch64-pc-windows-msvc",
-                _ => panic!("Unsupported platform: {}-{}", arch, os),
-            }.to_string()
+                _ => panic!("Unsupported platform: {arch}-{os}"),
+            }
+            .to_string()
         })
     }
 }

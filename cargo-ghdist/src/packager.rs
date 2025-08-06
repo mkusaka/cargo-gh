@@ -1,9 +1,9 @@
+use crate::cli::ArchiveFormat;
+use crate::error::GhDistError;
+use anyhow::Result;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use anyhow::Result;
-use crate::cli::ArchiveFormat;
-use crate::error::GhDistError;
 
 /// Package binaries into an archive
 pub fn create_archive(
@@ -14,12 +14,12 @@ pub fn create_archive(
 ) -> Result<PathBuf> {
     let archive_path = match format {
         ArchiveFormat::Tgz => {
-            let path = output_dir.join(format!("{}.tar.gz", archive_name));
+            let path = output_dir.join(format!("{archive_name}.tar.gz"));
             create_tar_gz(&path, binaries)?;
             path
         }
         ArchiveFormat::Zip => {
-            let path = output_dir.join(format!("{}.zip", archive_name));
+            let path = output_dir.join(format!("{archive_name}.zip"));
             create_zip(&path, binaries)?;
             path
         }
@@ -36,9 +36,10 @@ fn create_tar_gz(archive_path: &Path, files: &[PathBuf]) -> Result<()> {
     let mut tar_builder = tar::Builder::new(gz_encoder);
 
     for file_path in files {
-        let file_name = file_path.file_name()
+        let file_name = file_path
+            .file_name()
             .ok_or_else(|| GhDistError::Package("Invalid file path".to_string()))?;
-        
+
         let mut file = File::open(file_path)?;
         tar_builder.append_file(file_name, &mut file)?;
     }
@@ -57,12 +58,13 @@ fn create_zip(archive_path: &Path, files: &[PathBuf]) -> Result<()> {
         .unix_permissions(0o755);
 
     for file_path in files {
-        let file_name = file_path.file_name()
+        let file_name = file_path
+            .file_name()
             .and_then(|n| n.to_str())
             .ok_or_else(|| GhDistError::Package("Invalid file path".to_string()))?;
 
         zip.start_file(file_name, options)?;
-        
+
         let file_content = fs::read(file_path)?;
         zip.write_all(&file_content)?;
     }
@@ -73,13 +75,14 @@ fn create_zip(archive_path: &Path, files: &[PathBuf]) -> Result<()> {
 
 /// Generate SHA256 checksums for files
 pub fn generate_checksums(files: &[PathBuf], output_dir: &Path) -> Result<PathBuf> {
-    use sha2::{Sha256, Digest};
-    
+    use sha2::{Digest, Sha256};
+
     let checksum_path = output_dir.join("SHA256SUMS");
     let mut checksum_file = File::create(&checksum_path)?;
 
     for file_path in files {
-        let file_name = file_path.file_name()
+        let file_name = file_path
+            .file_name()
             .and_then(|n| n.to_str())
             .ok_or_else(|| GhDistError::Package("Invalid file path".to_string()))?;
 
@@ -89,7 +92,7 @@ pub fn generate_checksums(files: &[PathBuf], output_dir: &Path) -> Result<PathBu
         let hash = hasher.finalize();
         let hash_hex = hex::encode(hash);
 
-        writeln!(checksum_file, "{}  {}", hash_hex, file_name)?;
+        writeln!(checksum_file, "{hash_hex}  {file_name}")?;
     }
 
     tracing::info!("Generated checksums: {}", checksum_path.display());
@@ -105,21 +108,17 @@ mod tests {
     fn test_create_tar_gz_archive() {
         let temp_dir = tempdir().unwrap();
         let output_dir = tempdir().unwrap();
-        
+
         // Create test files
         let file1 = temp_dir.path().join("binary1");
         let file2 = temp_dir.path().join("binary2");
         fs::write(&file1, b"content1").unwrap();
         fs::write(&file2, b"content2").unwrap();
-        
+
         let files = vec![file1, file2];
-        let archive_path = create_archive(
-            &files,
-            output_dir.path(),
-            "test",
-            ArchiveFormat::Tgz,
-        ).unwrap();
-        
+        let archive_path =
+            create_archive(&files, output_dir.path(), "test", ArchiveFormat::Tgz).unwrap();
+
         assert!(archive_path.exists());
         assert!(archive_path.to_str().unwrap().ends_with(".tar.gz"));
     }
@@ -128,21 +127,17 @@ mod tests {
     fn test_create_zip_archive() {
         let temp_dir = tempdir().unwrap();
         let output_dir = tempdir().unwrap();
-        
+
         // Create test files
         let file1 = temp_dir.path().join("binary1");
         let file2 = temp_dir.path().join("binary2");
         fs::write(&file1, b"content1").unwrap();
         fs::write(&file2, b"content2").unwrap();
-        
+
         let files = vec![file1, file2];
-        let archive_path = create_archive(
-            &files,
-            output_dir.path(),
-            "test",
-            ArchiveFormat::Zip,
-        ).unwrap();
-        
+        let archive_path =
+            create_archive(&files, output_dir.path(), "test", ArchiveFormat::Zip).unwrap();
+
         assert!(archive_path.exists());
         assert!(archive_path.to_str().unwrap().ends_with(".zip"));
     }
@@ -150,18 +145,18 @@ mod tests {
     #[test]
     fn test_generate_checksums() {
         let temp_dir = tempdir().unwrap();
-        
+
         // Create test files
         let file1 = temp_dir.path().join("binary1");
         let file2 = temp_dir.path().join("binary2");
         fs::write(&file1, b"content1").unwrap();
         fs::write(&file2, b"content2").unwrap();
-        
+
         let files = vec![file1, file2];
         let checksum_path = generate_checksums(&files, temp_dir.path()).unwrap();
-        
+
         assert!(checksum_path.exists());
-        
+
         let content = fs::read_to_string(&checksum_path).unwrap();
         assert!(content.contains("binary1"));
         assert!(content.contains("binary2"));

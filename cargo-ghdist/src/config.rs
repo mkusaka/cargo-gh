@@ -1,12 +1,12 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use anyhow::Result;
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub default: DefaultConfig,
-    
+
     #[serde(default)]
     pub repository: RepositoryConfig,
 }
@@ -15,13 +15,13 @@ pub struct Config {
 pub struct DefaultConfig {
     #[serde(default = "default_targets")]
     pub targets: Vec<String>,
-    
+
     #[serde(default = "default_format")]
     pub format: String,
-    
+
     #[serde(default)]
     pub draft: bool,
-    
+
     #[serde(default = "default_skip_publish")]
     pub skip_publish: bool,
 }
@@ -91,7 +91,7 @@ impl Config {
         // Apply repository configuration
         if args.repository.is_none() {
             if let (Some(owner), Some(repo)) = (&self.repository.owner, &self.repository.repo) {
-                args.repository = Some(format!("{}/{}", owner, repo));
+                args.repository = Some(format!("{owner}/{repo}"));
             }
         }
     }
@@ -100,14 +100,14 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_load_config() {
         let dir = tempdir().unwrap();
         let config_path = dir.path().join("test.toml");
-        
+
         let config_content = r#"
 [default]
 targets = ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin"]
@@ -119,16 +119,16 @@ skip_publish = false
 owner = "test-org"
 repo = "test-crate"
 "#;
-        
+
         fs::write(&config_path, config_content).unwrap();
-        
+
         let config = Config::load(&config_path).unwrap();
-        
+
         assert_eq!(config.default.targets.len(), 2);
         assert_eq!(config.default.format, "zip");
         assert!(config.default.draft);
         assert!(!config.default.skip_publish);
-        
+
         assert_eq!(config.repository.owner, Some("test-org".to_string()));
         assert_eq!(config.repository.repo, Some("test-crate".to_string()));
     }

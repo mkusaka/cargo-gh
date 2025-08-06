@@ -1,8 +1,8 @@
 mod cli;
 mod config;
+mod error;
 mod github;
 mod installer;
-mod error;
 mod utils;
 
 use anyhow::Result;

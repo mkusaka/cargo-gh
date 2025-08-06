@@ -1,13 +1,14 @@
+use crate::error::GhInstallError;
+use anyhow::Result;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use anyhow::Result;
-use crate::error::GhInstallError;
 
 /// Extract archive to a temporary directory
 pub fn extract_archive(archive_path: &Path) -> Result<tempfile::TempDir> {
     let temp_dir = tempfile::tempdir()?;
-    let archive_name = archive_path.file_name()
+    let archive_name = archive_path
+        .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| GhInstallError::ArchiveExtraction("Invalid archive path".to_string()))?;
 
@@ -20,9 +21,10 @@ pub fn extract_archive(archive_path: &Path) -> Result<tempfile::TempDir> {
     } else if archive_name.ends_with(".zip") {
         extract_zip(archive_path, temp_dir.path())?;
     } else {
-        return Err(GhInstallError::ArchiveExtraction(
-            format!("Unsupported archive format: {}", archive_name)
-        ).into());
+        return Err(GhInstallError::ArchiveExtraction(format!(
+            "Unsupported archive format: {archive_name}"
+        ))
+        .into());
     }
 
     Ok(temp_dir)
@@ -115,7 +117,8 @@ fn is_executable(path: &Path) -> Result<bool> {
 #[cfg(windows)]
 fn is_executable(path: &Path) -> Result<bool> {
     // On Windows, check for common executable extensions
-    Ok(path.extension()
+    Ok(path
+        .extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| matches!(ext.to_lowercase().as_str(), "exe" | "bat" | "cmd" | "ps1"))
         .unwrap_or(false))
@@ -138,9 +141,10 @@ pub fn make_executable(_path: &Path) -> Result<()> {
 }
 
 /// Calculate SHA256 hash of a file
+#[allow(dead_code)]
 pub fn calculate_sha256(path: &Path) -> Result<String> {
-    use sha2::{Sha256, Digest};
-    
+    use sha2::{Digest, Sha256};
+
     let mut file = fs::File::open(path)?;
     let mut hasher = Sha256::new();
     let mut buffer = [0; 8192];
@@ -165,25 +169,25 @@ mod tests {
     #[test]
     fn test_is_executable_detection() {
         let dir = tempdir().unwrap();
-        
+
         #[cfg(unix)]
         {
             let exec_file = dir.path().join("executable");
             fs::write(&exec_file, "#!/bin/bash\necho test").unwrap();
             make_executable(&exec_file).unwrap();
             assert!(is_executable(&exec_file).unwrap());
-            
+
             let non_exec_file = dir.path().join("non_executable");
             fs::write(&non_exec_file, "test").unwrap();
             assert!(!is_executable(&non_exec_file).unwrap());
         }
-        
+
         #[cfg(windows)]
         {
             let exec_file = dir.path().join("executable.exe");
             fs::write(&exec_file, "test").unwrap();
             assert!(is_executable(&exec_file).unwrap());
-            
+
             let non_exec_file = dir.path().join("non_executable.txt");
             fs::write(&non_exec_file, "test").unwrap();
             assert!(!is_executable(&non_exec_file).unwrap());
@@ -195,8 +199,11 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.txt");
         fs::write(&file_path, b"Hello, World!").unwrap();
-        
+
         let hash = calculate_sha256(&file_path).unwrap();
-        assert_eq!(hash, "dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f");
+        assert_eq!(
+            hash,
+            "dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f"
+        );
     }
 }

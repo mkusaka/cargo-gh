@@ -1,7 +1,7 @@
+use anyhow::{Context, Result};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
-use anyhow::{Result, Context};
 
 use crate::cli::Args;
 use crate::config::Config;
@@ -11,6 +11,7 @@ use crate::utils;
 
 pub struct Installer {
     args: Args,
+    #[allow(dead_code)]
     config: Config,
     github_client: GitHubClient,
 }
@@ -18,16 +19,16 @@ pub struct Installer {
 impl Installer {
     pub fn new(mut args: Args) -> Result<Self> {
         // Load configuration
-        let config_path = args.config.as_ref()
-            .map(|p| p.clone())
+        let config_path = args
+            .config
+            .clone()
             .unwrap_or_else(Config::default_path);
-        
-        let config = Config::load(&config_path)
-            .context("Failed to load configuration")?;
+
+        let config = Config::load(&config_path).context("Failed to load configuration")?;
 
         // Parse repository info
         let (owner, repo, _) = args.parse_repo()?;
-        
+
         // Merge configuration with args
         config.merge_with_args(&mut args, &owner, &repo);
 
@@ -42,17 +43,30 @@ impl Installer {
 
     pub async fn run(&self) -> Result<()> {
         let (owner, repo, tag) = self.args.parse_repo()?;
-        
-        tracing::info!("Installing from {}/{} (tag: {})", 
-            owner, repo, tag.as_deref().unwrap_or("latest"));
+
+        tracing::info!(
+            "Installing from {}/{} (tag: {})",
+            owner,
+            repo,
+            tag.as_deref().unwrap_or("latest")
+        );
 
         // Get release from GitHub
-        let release = match self.github_client.get_release(&owner, &repo, tag.as_deref()).await {
+        let release = match self
+            .github_client
+            .get_release(&owner, &repo, tag.as_deref())
+            .await
+        {
             Ok(release) => release,
             Err(e) => {
                 if !self.args.no_fallback {
-                    tracing::warn!("Failed to get release: {}. Falling back to cargo install", e);
-                    return self.fallback_cargo_install(&owner, &repo, tag.as_deref()).await;
+                    tracing::warn!(
+                        "Failed to get release: {}. Falling back to cargo install",
+                        e
+                    );
+                    return self
+                        .fallback_cargo_install(&owner, &repo, tag.as_deref())
+                        .await;
                 }
                 return Err(e.into());
             }
@@ -61,21 +75,26 @@ impl Installer {
         // Show release notes if requested
         if self.args.show_notes {
             if let Some(body) = &release.body {
-                println!("\n=== Release Notes ===\n{}\n=====================\n", body);
+                println!("\n=== Release Notes ===\n{body}\n=====================\n");
             }
         }
 
         // Find matching asset
         let target = self.args.target();
         let asset = GitHubClient::find_asset(&release, &target, self.args.bin.as_deref())
-            .ok_or_else(|| GhInstallError::AssetNotFound { target: target.clone() })?;
+            .ok_or_else(|| GhInstallError::AssetNotFound {
+                target: target.clone(),
+            })?;
 
         // Download asset
         let temp_file = self.github_client.download_asset(&asset).await?;
 
         // Verify signature if requested
         if self.args.verify_signature {
-            if let Err(e) = self.verify_signature(&release, &asset, temp_file.path()).await {
+            if let Err(e) = self
+                .verify_signature(&release, &asset, temp_file.path())
+                .await
+            {
                 tracing::error!("Signature verification failed: {}", e);
                 return Err(e.into());
             }
@@ -93,15 +112,16 @@ impl Installer {
 
     async fn install_binaries(&self, extracted_dir: &Path, default_name: &str) -> Result<()> {
         let executables = utils::find_executables(extracted_dir)?;
-        
+
         if executables.is_empty() {
             return Err(GhInstallError::Installation(
-                "No executable files found in the archive".to_string()
-            ).into());
+                "No executable files found in the archive".to_string(),
+            )
+            .into());
         }
 
         let install_dir = self.args.install_dir();
-        
+
         // Create install directory if it doesn't exist
         fs::create_dir_all(&install_dir)?;
 
@@ -112,34 +132,39 @@ impl Installer {
             }
         } else if let Some(bin_name) = &self.args.bin {
             // Install specific binary
-            let matching = executables.iter()
-                .find(|p| p.file_name()
+            let matching = executables.iter().find(|p| {
+                p.file_name()
                     .and_then(|n| n.to_str())
                     .map(|n| n.contains(bin_name))
-                    .unwrap_or(false));
+                    .unwrap_or(false)
+            });
 
             if let Some(exe_path) = matching {
                 self.install_binary(exe_path, &install_dir, Some(bin_name))?;
             } else {
-                return Err(GhInstallError::Installation(
-                    format!("Binary '{}' not found in archive", bin_name)
-                ).into());
+                return Err(GhInstallError::Installation(format!(
+                    "Binary '{bin_name}' not found in archive"
+                ))
+                .into());
             }
         } else {
             // Install default binary (matching repo name or first executable)
-            let default_exe = executables.iter()
-                .find(|p| p.file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|n| n.contains(default_name))
-                    .unwrap_or(false))
+            let default_exe = executables
+                .iter()
+                .find(|p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|n| n.contains(default_name))
+                        .unwrap_or(false)
+                })
                 .or_else(|| executables.first());
 
             if let Some(exe_path) = default_exe {
                 self.install_binary(exe_path, &install_dir, Some(default_name))?;
             } else {
-                return Err(GhInstallError::Installation(
-                    "No suitable binary found".to_string()
-                ).into());
+                return Err(
+                    GhInstallError::Installation("No suitable binary found".to_string()).into(),
+                );
             }
         }
 
@@ -147,11 +172,12 @@ impl Installer {
     }
 
     fn install_binary(&self, source: &Path, install_dir: &Path, name: Option<&str>) -> Result<()> {
-        let binary_name = name.or_else(|| source.file_stem()?.to_str())
+        let binary_name = name
+            .or_else(|| source.file_stem()?.to_str())
             .ok_or_else(|| GhInstallError::Installation("Invalid binary name".to_string()))?;
 
         let dest_path = install_dir.join(binary_name);
-        
+
         // Add .exe extension on Windows
         #[cfg(windows)]
         let dest_path = if !dest_path.extension().map(|e| e == "exe").unwrap_or(false) {
@@ -171,28 +197,35 @@ impl Installer {
         Ok(())
     }
 
-    async fn verify_signature(&self, release: &octocrab::models::repos::Release, asset: &ReleaseAsset, file_path: &Path) -> GhResult<()> {
+    async fn verify_signature(
+        &self,
+        release: &octocrab::models::repos::Release,
+        asset: &ReleaseAsset,
+        _file_path: &Path,
+    ) -> GhResult<()> {
         // Look for .sig or .asc file
-        let sig_asset = release.assets.iter()
-            .find(|a| {
-                let name = &a.name;
-                (name == &format!("{}.sig", asset.name) || 
-                 name == &format!("{}.asc", asset.name))
-            });
+        let sig_asset = release.assets.iter().find(|a| {
+            let name = &a.name;
+            let asset_name = &asset.name;
+            name == &format!("{asset_name}.sig") || name == &format!("{asset_name}.asc")
+        });
 
         if let Some(sig_asset) = sig_asset {
             tracing::info!("Found signature file: {}", sig_asset.name);
-            
+
             // Download signature file
             let sig_asset = ReleaseAsset {
                 name: sig_asset.name.clone(),
                 url: sig_asset.browser_download_url.to_string(),
                 size: sig_asset.size as u64,
             };
-            
-            let _sig_file = self.github_client.download_asset(&sig_asset).await
-                .map_err(|e| GhInstallError::SignatureVerification)?;
-            
+
+            let _sig_file = self
+                .github_client
+                .download_asset(&sig_asset)
+                .await
+                .map_err(|_| GhInstallError::SignatureVerification)?;
+
             // TODO: Implement actual GPG verification
             tracing::warn!("Signature verification not yet implemented");
             Ok(())
@@ -201,13 +234,18 @@ impl Installer {
         }
     }
 
-    async fn fallback_cargo_install(&self, owner: &str, repo: &str, tag: Option<&str>) -> Result<()> {
+    async fn fallback_cargo_install(
+        &self,
+        owner: &str,
+        repo: &str,
+        tag: Option<&str>,
+    ) -> Result<()> {
         tracing::info!("Falling back to cargo install from git");
-        
+
         let mut cmd = Command::new("cargo");
         cmd.arg("install")
             .arg("--git")
-            .arg(format!("https://github.com/{}/{}.git", owner, repo));
+            .arg(format!("https://github.com/{owner}/{repo}.git"));
 
         if let Some(tag) = tag {
             cmd.arg("--rev").arg(tag);
@@ -218,11 +256,9 @@ impl Installer {
         }
 
         let status = cmd.status()?;
-        
+
         if !status.success() {
-            return Err(GhInstallError::Installation(
-                "cargo install failed".to_string()
-            ).into());
+            return Err(GhInstallError::Installation("cargo install failed".to_string()).into());
         }
 
         Ok(())
@@ -232,21 +268,21 @@ impl Installer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_install_binary() {
         let temp_source = tempdir().unwrap();
         let temp_dest = tempdir().unwrap();
-        
+
         let source_file = temp_source.path().join("test_binary");
         fs::write(&source_file, b"#!/bin/bash\necho test").unwrap();
-        
+
         // Test the file copy and permission setting directly
         let dest_file = temp_dest.path().join("test");
         fs::copy(&source_file, &dest_file).unwrap();
-        
+
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -254,7 +290,7 @@ mod tests {
             let metadata = fs::metadata(&dest_file).unwrap();
             assert!(metadata.permissions().mode() & 0o111 != 0);
         }
-        
+
         assert!(dest_file.exists());
     }
 }

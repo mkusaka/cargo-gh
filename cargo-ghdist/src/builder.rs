@@ -1,17 +1,18 @@
+use anyhow::{Context, Result};
+use git2::Repository;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use anyhow::{Result, Context};
-use git2::Repository;
 
 use crate::cli::Args;
 use crate::config::Config;
 use crate::error::{GhDistError, Result as GhResult};
-use crate::github::{GitHubClient, get_content_type};
+use crate::github::{get_content_type, GitHubClient};
 use crate::packager;
 
 pub struct DistBuilder {
     args: Args,
+    #[allow(dead_code)]
     config: Config,
     github_client: GitHubClient,
 }
@@ -19,12 +20,12 @@ pub struct DistBuilder {
 impl DistBuilder {
     pub fn new(mut args: Args) -> Result<Self> {
         // Load configuration
-        let config_path = args.config.as_ref()
-            .map(|p| p.clone())
+        let config_path = args
+            .config
+            .clone()
             .unwrap_or_else(Config::default_path);
-        
-        let config = Config::load(&config_path)
-            .context("Failed to load configuration")?;
+
+        let config = Config::load(&config_path).context("Failed to load configuration")?;
 
         // Merge configuration with args
         config.merge_with_args(&mut args);
@@ -48,18 +49,18 @@ impl DistBuilder {
         tracing::info!("Repository: {}/{}", owner, repo);
 
         // Create output directory
-        let output_dir = PathBuf::from(format!("target/dist/{}", tag));
+        let output_dir = PathBuf::from(format!("target/dist/{tag}"));
         fs::create_dir_all(&output_dir)?;
 
         // Build for each target
         let mut all_archives = Vec::new();
         for target in self.args.targets() {
             tracing::info!("Building for target: {}", target);
-            
+
             match self.build_for_target(&target).await {
                 Ok(binaries) => {
                     // Create archive for this target
-                    let archive_name = format!("{}-{}-{}", repo, target, tag);
+                    let archive_name = format!("{repo}-{target}-{tag}");
                     let archive_path = packager::create_archive(
                         &binaries,
                         &output_dir,
@@ -80,7 +81,8 @@ impl DistBuilder {
         if all_archives.is_empty() {
             return Err(GhDistError::BuildFailed {
                 target: "all targets".to_string(),
-            }.into());
+            }
+            .into());
         }
 
         // Generate checksums if requested
@@ -90,38 +92,40 @@ impl DistBuilder {
         }
 
         // Create or update GitHub release
-        let release = self.github_client.create_release(
-            &owner,
-            &repo,
-            &tag,
-            self.args.draft,
-        ).await?;
+        let release = self
+            .github_client
+            .create_release(&owner, &repo, &tag, self.args.draft)
+            .await?;
 
         // Upload all assets
         for asset_path in &all_archives {
-            let asset_name = asset_path.file_name()
+            let asset_name = asset_path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown");
 
             // Check if asset already exists and delete it
-            if let Some(asset_id) = self.github_client.asset_exists(
-                &owner,
-                &repo,
-                release.id.0 as u64,
-                asset_name,
-            ).await? {
+            if let Some(asset_id) = self
+                .github_client
+                .asset_exists(&owner, &repo, release.id.0 as u64, asset_name)
+                .await?
+            {
                 tracing::info!("Deleting existing asset: {}", asset_name);
-                self.github_client.delete_asset(&owner, &repo, asset_id).await?;
+                self.github_client
+                    .delete_asset(&owner, &repo, asset_id)
+                    .await?;
             }
 
             // Upload new asset
-            self.github_client.upload_asset(
-                &owner,
-                &repo,
-                release.id.0 as u64,
-                asset_path,
-                get_content_type(asset_path),
-            ).await?;
+            self.github_client
+                .upload_asset(
+                    &owner,
+                    &repo,
+                    release.id.0 as u64,
+                    asset_path,
+                    get_content_type(asset_path),
+                )
+                .await?;
         }
 
         // Run cargo publish if requested
@@ -142,18 +146,14 @@ impl DistBuilder {
         }
 
         // Try to get tag from git HEAD
-        let repo = Repository::open(".")
-            .map_err(|e| GhDistError::Git(e))?;
+        let repo = Repository::open(".").map_err(GhDistError::Git)?;
 
-        let head = repo.head()
-            .map_err(|e| GhDistError::Git(e))?;
+        let head = repo.head().map_err(GhDistError::Git)?;
 
-        let oid = head.target()
-            .ok_or_else(|| GhDistError::NoTag)?;
+        let oid = head.target().ok_or_else(|| GhDistError::NoTag)?;
 
         // Look for tags pointing to HEAD
-        let tags = repo.tag_names(None)
-            .map_err(|e| GhDistError::Git(e))?;
+        let tags = repo.tag_names(None).map_err(GhDistError::Git)?;
 
         for tag in tags.iter().flatten() {
             if let Ok(tag_obj) = repo.revparse_single(tag) {
@@ -169,9 +169,7 @@ impl DistBuilder {
     /// Build binaries for a specific target
     async fn build_for_target(&self, target: &str) -> GhResult<Vec<PathBuf>> {
         let mut cmd = Command::new("cargo");
-        cmd.arg("build")
-            .arg("--target")
-            .arg(target);
+        cmd.arg("build").arg("--target").arg(target);
 
         // Add profile
         if self.args.profile == "release" {
@@ -187,10 +185,9 @@ impl DistBuilder {
             }
         }
 
-        let status = cmd.status()
-            .map_err(|_e| GhDistError::BuildFailed {
-                target: target.to_string(),
-            })?;
+        let status = cmd.status().map_err(|_| GhDistError::BuildFailed {
+            target: target.to_string(),
+        })?;
 
         if !status.success() {
             return Err(GhDistError::BuildFailed {
@@ -200,14 +197,15 @@ impl DistBuilder {
 
         // Find built binaries
         let target_dir = self.get_target_dir(target);
-        let binaries = self.find_binaries(&target_dir)
+        let binaries = self
+            .find_binaries(&target_dir)
             .map_err(|_| GhDistError::BuildFailed {
                 target: target.to_string(),
             })?;
 
         if binaries.is_empty() {
             return Err(GhDistError::BuildFailed {
-                target: format!("{} (no binaries found)", target),
+                target: format!("{target} (no binaries found)"),
             });
         }
 
@@ -240,9 +238,7 @@ impl DistBuilder {
             if path.is_file() && self.is_binary(&path)? {
                 // Filter by requested bins if specified
                 if let Some(bins) = &self.args.bins {
-                    let file_name = path.file_stem()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("");
+                    let file_name = path.file_stem().and_then(|n| n.to_str()).unwrap_or("");
                     if !bins.iter().any(|b| b == file_name) {
                         continue;
                     }
@@ -267,7 +263,8 @@ impl DistBuilder {
         #[cfg(windows)]
         {
             // On Windows, check for .exe extension
-            Ok(path.extension()
+            Ok(path
+                .extension()
                 .and_then(|ext| ext.to_str())
                 .map(|ext| ext.eq_ignore_ascii_case("exe"))
                 .unwrap_or(false))
@@ -278,9 +275,7 @@ impl DistBuilder {
     fn run_cargo_publish(&self) -> Result<()> {
         tracing::info!("Running cargo publish");
 
-        let status = Command::new("cargo")
-            .arg("publish")
-            .status()?;
+        let status = Command::new("cargo").arg("publish").status()?;
 
         if !status.success() {
             tracing::warn!("cargo publish failed");
@@ -304,30 +299,31 @@ mod tests {
     #[test]
     fn test_is_binary() {
         let temp_dir = tempdir().unwrap();
-        
+
         #[cfg(unix)]
         {
             let binary_path = temp_dir.path().join("test_binary");
             fs::write(&binary_path, b"#!/bin/bash\necho test").unwrap();
-            
+
             use std::os::unix::fs::PermissionsExt;
             let mut perms = fs::metadata(&binary_path).unwrap().permissions();
             perms.set_mode(0o755);
             fs::set_permissions(&binary_path, perms).unwrap();
-            
+
             // Test the is_binary function directly without creating a DistBuilder
             let metadata = fs::metadata(&binary_path).unwrap();
             let permissions = metadata.permissions();
             assert!(permissions.mode() & 0o111 != 0);
         }
-        
+
         #[cfg(windows)]
         {
             let binary_path = temp_dir.path().join("test.exe");
             fs::write(&binary_path, b"test").unwrap();
-            
+
             // Test Windows executable detection
-            assert!(binary_path.extension()
+            assert!(binary_path
+                .extension()
                 .and_then(|ext| ext.to_str())
                 .map(|ext| ext.eq_ignore_ascii_case("exe"))
                 .unwrap_or(false));
