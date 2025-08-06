@@ -130,7 +130,7 @@ impl DistBuilder {
             // Check if asset already exists and delete it
             if let Some(asset_id) = self
                 .github_client
-                .asset_exists(&owner, &repo, release.id.0 as u64, asset_name)
+                .asset_exists(&owner, &repo, release.id.0, asset_name)
                 .await?
             {
                 tracing::info!("Deleting existing asset: {}", asset_name);
@@ -144,7 +144,7 @@ impl DistBuilder {
                 .upload_asset(
                     &owner,
                     &repo,
-                    release.id.0 as u64,
+                    release.id.0,
                     asset_path,
                     get_content_type(asset_path),
                 )
