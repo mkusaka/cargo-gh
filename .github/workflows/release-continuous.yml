@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - feat/cargo-gh-subcommands  # Testing branch
   workflow_dispatch:  # Allow manual trigger
 
 permissions:
