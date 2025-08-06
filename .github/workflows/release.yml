@@ -276,40 +276,6 @@ jobs:
           "$TMPDIR/cargo-ghinstall" --version
           "$TMPDIR/cargo-ghdist" --version
 
-  # Cleanup old continuous releases
-  cleanup-old-releases:
-    name: Cleanup Old Releases
-    needs: [prepare-release, publish-release]
-    if: needs.prepare-release.outputs.is_continuous == 'true'
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Cleanup old dev releases
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "🧹 Cleaning up old dev releases..."
-          
-          # Keep only the last 5 dev releases
-          RELEASES=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/releases \
-            --jq '.[] | select(.tag_name | startswith("dev-")) | .id' \
-            | tail -n +6)
-          
-          if [ -n "$RELEASES" ]; then
-            echo "$RELEASES" | while read -r release_id; do
-              echo "Deleting release ID: $release_id"
-              gh api \
-                --method DELETE \
-                -H "Accept: application/vnd.github+json" \
-                /repos/${{ github.repository }}/releases/${release_id}
-            done
-            echo "✅ Cleanup completed"
-          else
-            echo "No old releases to clean up"
-          fi
-
   # Success notification
   release-success:
     name: Release Success
