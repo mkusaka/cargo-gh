@@ -17,8 +17,10 @@ pub enum CargoCli {
 #[derive(Parser, Debug, Clone)]
 #[clap(version, about, long_about = None)]
 pub struct Args {
-    /// Repository in format owner/repo[@tag]
+    /// Repository to install from
+    /// Format: owner/repo[@tag]
     /// Examples: rust-lang/rust-analyzer@v1.2.3, owner/repo@abcdef0, owner/repo@main
+    #[clap(value_name = "OWNER/REPO[@TAG]")]
     pub repo: String,
 
     /// Release tag (e.g., v1.2.3, abcdef0, main, or any git ref)
@@ -54,8 +56,8 @@ pub struct Args {
     pub no_fallback: bool,
 
     /// Configuration file path
-    #[clap(long)]
-    pub config: Option<PathBuf>,
+    #[clap(long, default_value = ".config/ghinstall.toml")]
+    pub config: PathBuf,
 
     /// Enable verbose output
     #[clap(long)]

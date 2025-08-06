@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -11,62 +11,119 @@ use std::path::PathBuf;
 )]
 pub enum CargoCli {
     #[clap(name = "ghdist")]
-    Ghdist(Args),
+    Ghdist(GhdistCli),
 }
 
 #[derive(Parser, Debug, Clone)]
 #[clap(version, about, long_about = None)]
-pub struct Args {
+pub struct GhdistCli {
+    #[clap(subcommand)]
+    pub command: Option<Command>,
+
     /// Release tag (e.g., v1.2.3, abcdef0, main, or any git ref)
     /// If not specified, uses the tag on HEAD
-    #[clap(short, long)]
+    #[clap(short, long, global = true)]
     pub tag: Option<String>,
 
     /// Build targets (comma-separated Rust triple format)
     /// Example: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
-    #[clap(short = 'T', long, value_delimiter = ',')]
+    #[clap(short = 'T', long, value_delimiter = ',', global = true)]
     pub targets: Option<Vec<String>>,
 
     /// Archive format (tgz or zip)
-    #[clap(short, long, default_value = "tgz")]
+    #[clap(short, long, default_value = "tgz", global = true)]
     pub format: ArchiveFormat,
 
     /// Create as draft release
-    #[clap(long)]
+    #[clap(long, global = true)]
     pub draft: bool,
 
     /// Skip cargo publish step
-    #[clap(long, default_value_t = true)]
+    #[clap(long, default_value_t = true, global = true)]
     pub skip_publish: bool,
 
     /// Don't generate checksum files (SHA256SUMS)
-    #[clap(long)]
+    #[clap(long, global = true)]
     pub no_checksum: bool,
 
     /// Configuration file path
-    #[clap(long)]
-    pub config: Option<PathBuf>,
+    #[clap(long, default_value = ".config/ghdist.toml", global = true)]
+    pub config: PathBuf,
 
     /// Enable verbose output
-    #[clap(long)]
+    #[clap(long, global = true)]
     pub verbose: bool,
 
     /// GitHub repository (owner/repo)
     /// If not specified, uses repository from Cargo.toml
-    #[clap(long)]
+    #[clap(long, global = true)]
     pub repository: Option<String>,
 
     /// GitHub token (can also be set via GITHUB_TOKEN env var)
-    #[clap(long, env = "GITHUB_TOKEN")]
+    #[clap(long, env = "GITHUB_TOKEN", global = true)]
     pub github_token: Option<String>,
 
     /// Binary names to include (if not specified, includes all)
-    #[clap(long, value_delimiter = ',')]
+    #[clap(long, value_delimiter = ',', global = true)]
     pub bins: Option<Vec<String>>,
 
     /// Cargo build profile (release, debug, etc.)
-    #[clap(long, default_value = "release")]
+    #[clap(long, default_value = "release", global = true)]
     pub profile: String,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum Command {
+    /// Initialize cargo-ghdist configuration for the project
+    Init {
+        /// Skip interactive prompts and use defaults
+        #[clap(short = 'y', long)]
+        yes: bool,
+
+        /// CI provider (github, gitlab, etc.)
+        #[clap(long, default_value = "github")]
+        ci: String,
+
+        /// Skip generating CI workflow
+        #[clap(long)]
+        skip_ci: bool,
+    },
+}
+
+// For backward compatibility, create Args from GhdistCli
+#[derive(Debug, Clone)]
+pub struct Args {
+    pub tag: Option<String>,
+    pub targets: Option<Vec<String>>,
+    pub format: ArchiveFormat,
+    pub draft: bool,
+    pub skip_publish: bool,
+    pub no_checksum: bool,
+    pub config: Option<PathBuf>,
+    pub verbose: bool,
+    pub repository: Option<String>,
+    pub github_token: Option<String>,
+    pub bins: Option<Vec<String>>,
+    pub profile: String,
+}
+
+impl From<GhdistCli> for Args {
+    fn from(cli: GhdistCli) -> Self {
+        Args {
+            tag: cli.tag,
+            targets: cli.targets,
+            format: cli.format,
+            draft: cli.draft,
+            skip_publish: cli.skip_publish,
+            no_checksum: cli.no_checksum,
+            config: Some(cli.config),
+            verbose: cli.verbose,
+            repository: cli.repository,
+            github_token: cli.github_token,
+            bins: cli.bins,
+            profile: cli.profile,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]

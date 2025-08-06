@@ -23,7 +23,7 @@ impl DistBuilder {
         let config_path = args
             .config
             .clone()
-            .unwrap_or_else(Config::default_path);
+            .unwrap_or_else(|| PathBuf::from(".config/ghdist.toml"));
 
         let config = Config::load(&config_path).context("Failed to load configuration")?;
 
@@ -140,20 +140,23 @@ impl DistBuilder {
     }
 
     /// Get tag from args or detect from git
-    fn get_tag(&self) -> GhResult<String> {
+    fn get_tag(&self) -> Result<String> {
         if let Some(tag) = &self.args.tag {
             return Ok(tag.clone());
         }
 
         // Try to get tag from git HEAD
-        let repo = Repository::open(".").map_err(GhDistError::Git)?;
+        let repo = Repository::open(".").context(
+            "Failed to find git repository. Please run this command from a git repository \
+             or specify a tag explicitly with --tag"
+        )?;
 
-        let head = repo.head().map_err(GhDistError::Git)?;
+        let head = repo.head().context("Failed to get git HEAD")?;
 
-        let oid = head.target().ok_or_else(|| GhDistError::NoTag)?;
+        let oid = head.target().context("HEAD has no target")?;
 
         // Look for tags pointing to HEAD
-        let tags = repo.tag_names(None).map_err(GhDistError::Git)?;
+        let tags = repo.tag_names(None).context("Failed to get git tags")?;
 
         for tag in tags.iter().flatten() {
             if let Ok(tag_obj) = repo.revparse_single(tag) {
@@ -163,7 +166,11 @@ impl DistBuilder {
             }
         }
 
-        Err(GhDistError::NoTag)
+        // If no tag found, suggest using --tag
+        anyhow::bail!(
+            "No tag found on current HEAD. Please create a tag first with 'git tag <version>' \
+             or specify a tag explicitly with --tag"
+        )
     }
 
     /// Build binaries for a specific target

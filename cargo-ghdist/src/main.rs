@@ -3,6 +3,7 @@ mod cli;
 mod config;
 mod error;
 mod github;
+mod init;
 mod packager;
 
 use anyhow::Result;
@@ -10,7 +11,8 @@ use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
 use crate::builder::DistBuilder;
-use crate::cli::Args;
+use crate::cli::{CargoCli, Command};
+use crate::init::Initializer;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -20,15 +22,26 @@ async fn main() -> Result<()> {
         .init();
 
     // Parse command line arguments
-    let args = Args::parse();
+    let CargoCli::Ghdist(cli) = CargoCli::parse();
 
-    if args.verbose {
+    if cli.verbose {
         tracing::info!("Running cargo-ghdist with verbose output");
     }
 
-    // Create builder and run
-    let builder = DistBuilder::new(args)?;
-    builder.run().await?;
+    // Handle subcommands
+    match cli.command {
+        Some(Command::Init { yes, ci, skip_ci }) => {
+            // Run init command
+            let initializer = Initializer::new(yes, ci, skip_ci);
+            initializer.run().await?;
+        }
+        None => {
+            // Default behavior: build and distribute
+            let args = cli.into();
+            let builder = DistBuilder::new(args)?;
+            builder.run().await?;
+        }
+    }
 
     Ok(())
 }

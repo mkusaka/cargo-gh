@@ -3,181 +3,131 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-      - '[0-9]*'  # Support tags that are just commit hashes
+      - 'v*'       # SemVer
+      - '[0-9a-f]*' # Short-hash tags
 
 permissions:
-  contents: write
+  contents: write  # For release creation and asset upload
 
 jobs:
-  create-release:
-    name: Create Release
+  # Linux builds
+  release-linux:
+    name: Release (Linux)
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Get version from tag
-        id: get_version
-        run: |
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
-      - name: Create draft release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ steps.get_version.outputs.version }}
-          draft: true
-          prerelease: false
 
-  build-and-upload:
-    name: Build and Upload
-    needs: create-release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout source
+        uses: actions/checkout@v4
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
-      
+          targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
+
       - name: Install cross-compilation tools
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-      
-      - name: Build binaries
-        run: |
-          cargo build --release --target ${{ matrix.target }} --bin cargo-ghinstall
-          cargo build --release --target ${{ matrix.target }} --bin cargo-ghdist
-      
-      - name: Create archive (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../cargo-gh-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.tar.gz \
-            cargo-ghinstall cargo-ghdist
-          cd ../../../
-          echo "ASSET=cargo-gh-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.tar.gz" >> $GITHUB_ENV
-      
-      - name: Create archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          cd target/${{ matrix.target }}/release
-          Compress-Archive -Path cargo-ghinstall.exe,cargo-ghdist.exe `
-            -DestinationPath ../../../cargo-gh-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.zip
-          cd ../../../
-          echo "ASSET=cargo-gh-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.zip" >> $env:GITHUB_ENV
-      
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./${{ env.ASSET }}
-          asset_name: ${{ env.ASSET }}
-          asset_content_type: application/octet-stream
 
-  # Alternative workflow using cargo-ghdist itself (bootstrap)
-  release-with-ghdist:
-    name: Release with cargo-ghdist
-    runs-on: ubuntu-latest
-    if: false  # Disabled by default, enable after initial release
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: |
-            x86_64-unknown-linux-gnu
-            aarch64-unknown-linux-gnu
-      
-      - name: Install cargo-ghinstall
+      - name: Build cargo-ghdist
         run: |
-          # After initial release, can use:
-          # cargo install --git https://github.com/${{ github.repository }} cargo-ghinstall
-          # cargo ghinstall ${{ github.repository }}@latest
-          cargo build --release --bin cargo-ghinstall
           cargo build --release --bin cargo-ghdist
-          cp target/release/cargo-gh* ~/.cargo/bin/
-      
-      - name: Build and distribute with cargo-ghdist
+          cp target/release/cargo-ghdist ~/.cargo/bin/ || true
+
+      - name: Run cargo-ghdist (Linux)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          TAG=${GITHUB_REF#refs/tags/}
           cargo ghdist \
-            --tag ${GITHUB_REF#refs/tags/} \
+            --tag "$TAG" \
             --targets x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu \
             --format tgz
 
-  generate-checksums:
-    name: Generate checksums
-    needs: [create-release, build-and-upload]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Download all artifacts
-        uses: actions/download-artifact@v3
-      
-      - name: Generate SHA256SUMS
-        run: |
-          sha256sum cargo-gh-*.tar.gz cargo-gh-*.zip > SHA256SUMS || true
-          cat SHA256SUMS
-      
-      - name: Upload SHA256SUMS
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./SHA256SUMS
-          asset_name: SHA256SUMS
-          asset_content_type: text/plain
+  # macOS builds
+  release-macos:
+    name: Release (macOS)
+    runs-on: macos-latest
 
-  publish-crates:
-    name: Publish to crates.io
-    needs: [create-release, build-and-upload]
-    runs-on: ubuntu-latest
-    if: false  # Enable when ready to publish to crates.io
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout source
+        uses: actions/checkout@v4
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
-      - name: Login to crates.io
-        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
-      
-      - name: Publish cargo-ghinstall
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Build cargo-ghdist
         run: |
-          cd cargo-ghinstall
-          cargo publish --dry-run
-          # cargo publish  # Uncomment when ready
-      
-      - name: Publish cargo-ghdist
+          cargo build --release --bin cargo-ghdist
+          cp target/release/cargo-ghdist ~/.cargo/bin/ || true
+
+      - name: Run cargo-ghdist (macOS)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd cargo-ghdist
-          cargo publish --dry-run
-          # cargo publish  # Uncomment when ready
+          TAG=${GITHUB_REF#refs/tags/}
+          cargo ghdist \
+            --tag "$TAG" \
+            --targets x86_64-apple-darwin,aarch64-apple-darwin \
+            --format tgz
+
+  # Windows builds (optional)
+  release-windows:
+    name: Release (Windows)
+    runs-on: windows-latest
+    if: false  # Enable when Windows support is needed
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build cargo-ghdist
+        shell: pwsh
+        run: |
+          cargo build --release --bin cargo-ghdist
+          Copy-Item target/release/cargo-ghdist.exe ~/.cargo/bin/ -Force -ErrorAction SilentlyContinue
+
+      - name: Run cargo-ghdist (Windows)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $TAG = $env:GITHUB_REF -replace 'refs/tags/', ''
+          cargo ghdist `
+            --tag "$TAG" `
+            --targets x86_64-pc-windows-msvc `
+            --format zip
+
+  # Publish to crates.io (commented out until ready)
+  # publish-crates:
+  #   name: Publish to crates.io
+  #   needs: [release-linux, release-macos]
+  #   runs-on: ubuntu-latest
+  #   if: false  # Enable when ready to publish to crates.io
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     
+  #     - name: Install Rust
+  #       uses: dtolnay/rust-toolchain@stable
+  #     
+  #     - name: Login to crates.io
+  #       run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
+  #     
+  #     - name: Publish cargo-ghinstall
+  #       run: |
+  #         cd cargo-ghinstall
+  #         cargo publish --dry-run
+  #         # cargo publish  # Uncomment when ready
+  #     
+  #     - name: Publish cargo-ghdist
+  #       run: |
+  #         cd cargo-ghdist
+  #         cargo publish --dry-run
+  #         # cargo publish  # Uncomment when ready

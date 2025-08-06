@@ -1,0 +1,37 @@
+# cargo-ghdist configuration file
+# This file can be placed at:
+# - .config/ghdist.toml (project-specific)
+# - ~/.config/ghdist.toml (user-specific)
+
+# Default build profile
+profile = "release"
+
+# Default archive format
+format = "tgz"
+
+# Default targets to build
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+]
+
+# Skip cargo publish by default
+skip_publish = true
+
+# Generate checksums by default
+generate_checksum = true
+
+# Repository information (if not in Cargo.toml)
+[repository]
+owner = "mkusaka"
+repo = "cargo-gh"
+
+# Binaries to include (if not specified, includes all)
+# bins = ["cargo-ghinstall", "cargo-ghdist"]
+
+# CI configuration for init command
+[ci]
+provider = "github"  # github, gitlab, etc.
+workflow_path = ".github/workflows/release.yml"

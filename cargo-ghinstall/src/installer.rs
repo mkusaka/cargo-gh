@@ -19,10 +19,7 @@ pub struct Installer {
 impl Installer {
     pub fn new(mut args: Args) -> Result<Self> {
         // Load configuration
-        let config_path = args
-            .config
-            .clone()
-            .unwrap_or_else(Config::default_path);
+        let config_path = args.config.clone();
 
         let config = Config::load(&config_path).context("Failed to load configuration")?;
 
