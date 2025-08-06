@@ -79,6 +79,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
+      - name: Install cargo-ghdist from source
+        run: |
+          cargo install --path ./cargo-ghdist
+          
       - name: Build with cargo-ghdist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -106,6 +110,10 @@ jobs:
         with:
           targets: x86_64-apple-darwin,aarch64-apple-darwin
 
+      - name: Install cargo-ghdist from source
+        run: |
+          cargo install --path ./cargo-ghdist
+          
       - name: Build with cargo-ghdist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -133,6 +141,10 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
+      - name: Install cargo-ghdist from source
+        run: |
+          cargo install --path ./cargo-ghdist
+          
       - name: Build with cargo-ghdist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -234,23 +246,35 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     
     steps:
-      - name: Install cargo-ghinstall
+      - name: Checkout source
+        uses: actions/checkout@v4
+      
+      - name: Install cargo-ghinstall from source
         run: |
-          cargo install cargo-ghinstall
+          cargo install --path ./cargo-ghinstall
       
       - name: Test installation
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           TAG="${{ needs.prepare-release.outputs.release_tag }}"
+          
+          # Create a temporary directory
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            TMPDIR="$RUNNER_TEMP/test-install"
+          else
+            TMPDIR="/tmp/test-install"
+          fi
+          
           # Test installing to a temporary directory
           cargo ghinstall "${{ github.repository }}@${TAG}" \
-            --install-dir /tmp/test-install \
+            --install-dir "$TMPDIR" \
             --bins
           
           # Test the installed binaries
-          /tmp/test-install/cargo-ghinstall --version
-          /tmp/test-install/cargo-ghdist --version
+          "$TMPDIR/cargo-ghinstall" --version
+          "$TMPDIR/cargo-ghdist" --version
 
   # Cleanup old continuous releases
   cleanup-old-releases:
