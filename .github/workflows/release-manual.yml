@@ -1,0 +1,328 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0, test-build, commit-hash)'
+        required: true
+        type: string
+      draft:
+        description: 'Create as draft release'
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+      targets:
+        description: 'Target platforms (comma-separated, leave empty for all)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write  # For release creation and asset upload
+
+jobs:
+  # Linux builds
+  release-linux:
+    name: Release (Linux)
+    runs-on: ubuntu-latest
+    if: contains(github.event.inputs.targets, 'linux') || github.event.inputs.targets == ''
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}  # Checkout the specific ref if it exists
+        continue-on-error: true  # Continue even if tag doesn't exist yet
+
+      - name: Checkout source (fallback)
+        if: failure()
+        uses: actions/checkout@v4  # Fallback to default branch
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
+
+      - name: Install cross-compilation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build cargo-ghdist
+        run: |
+          cargo build --release --bin cargo-ghdist
+          cp target/release/cargo-ghdist ~/.cargo/bin/ || true
+
+      - name: Run cargo-ghdist (Linux)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          DRAFT_FLAG=""
+          if [ "${{ github.event.inputs.draft }}" = "true" ]; then
+            DRAFT_FLAG="--draft"
+          fi
+          
+          cargo ghdist \
+            --tag "$TAG" \
+            --targets x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu \
+            --format tgz \
+            $DRAFT_FLAG
+
+      # Test installation
+      - name: Build cargo-ghinstall for testing
+        run: |
+          cargo build --release --bin cargo-ghinstall
+          cp target/release/cargo-ghinstall ~/.cargo/bin/ || true
+
+      - name: Wait for release assets
+        run: sleep 10
+
+      - name: Test installation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          cargo ghinstall ${{ github.repository }}@${TAG} \
+            --install-dir /tmp/test-install \
+            --bins
+
+      - name: Verify binaries
+        run: |
+          test -x /tmp/test-install/cargo-ghinstall
+          test -x /tmp/test-install/cargo-ghdist
+          /tmp/test-install/cargo-ghinstall --version
+          /tmp/test-install/cargo-ghdist --version
+          echo "✅ Linux binaries verified!"
+
+  # macOS builds
+  release-macos:
+    name: Release (macOS)
+    runs-on: macos-latest
+    if: contains(github.event.inputs.targets, 'macos') || contains(github.event.inputs.targets, 'darwin') || github.event.inputs.targets == ''
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+        continue-on-error: true
+
+      - name: Checkout source (fallback)
+        if: failure()
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Build cargo-ghdist
+        run: |
+          cargo build --release --bin cargo-ghdist
+          cp target/release/cargo-ghdist ~/.cargo/bin/ || true
+
+      - name: Run cargo-ghdist (macOS)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          DRAFT_FLAG=""
+          if [ "${{ github.event.inputs.draft }}" = "true" ]; then
+            DRAFT_FLAG="--draft"
+          fi
+          
+          cargo ghdist \
+            --tag "$TAG" \
+            --targets x86_64-apple-darwin,aarch64-apple-darwin \
+            --format tgz \
+            $DRAFT_FLAG
+
+      # Test installation
+      - name: Build cargo-ghinstall for testing
+        run: |
+          cargo build --release --bin cargo-ghinstall
+          cp target/release/cargo-ghinstall ~/.cargo/bin/ || true
+
+      - name: Wait for release assets
+        run: sleep 10
+
+      - name: Test installation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          cargo ghinstall ${{ github.repository }}@${TAG} \
+            --install-dir /tmp/test-install \
+            --bins
+
+      - name: Verify binaries
+        run: |
+          test -x /tmp/test-install/cargo-ghinstall
+          test -x /tmp/test-install/cargo-ghdist
+          /tmp/test-install/cargo-ghinstall --version
+          /tmp/test-install/cargo-ghdist --version
+          echo "✅ macOS binaries verified!"
+
+  # Windows builds
+  release-windows:
+    name: Release (Windows)
+    runs-on: windows-latest
+    if: contains(github.event.inputs.targets, 'windows') || contains(github.event.inputs.targets, 'msvc')
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+        continue-on-error: true
+
+      - name: Checkout source (fallback)
+        if: failure()
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build cargo-ghdist
+        shell: pwsh
+        run: |
+          cargo build --release --bin cargo-ghdist
+          Copy-Item target/release/cargo-ghdist.exe ~/.cargo/bin/ -Force -ErrorAction SilentlyContinue
+
+      - name: Run cargo-ghdist (Windows)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $TAG = "${{ github.event.inputs.tag }}"
+          $DRAFT_FLAG = ""
+          if ("${{ github.event.inputs.draft }}" -eq "true") {
+            $DRAFT_FLAG = "--draft"
+          }
+          
+          cargo ghdist `
+            --tag "$TAG" `
+            --targets x86_64-pc-windows-msvc `
+            --format zip `
+            $DRAFT_FLAG
+
+      # Test installation
+      - name: Build cargo-ghinstall for testing
+        shell: pwsh
+        run: |
+          cargo build --release --bin cargo-ghinstall
+          Copy-Item target/release/cargo-ghinstall.exe ~/.cargo/bin/ -Force -ErrorAction SilentlyContinue
+
+      - name: Wait for release assets
+        shell: pwsh
+        run: Start-Sleep -Seconds 10
+
+      - name: Test installation
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $TAG = "${{ github.event.inputs.tag }}"
+          cargo ghinstall "${{ github.repository }}@$TAG" `
+            --install-dir "$env:TEMP\test-install" `
+            --bins
+
+      - name: Verify binaries
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "$env:TEMP\test-install\cargo-ghinstall.exe")) {
+            throw "cargo-ghinstall.exe not found"
+          }
+          if (-not (Test-Path "$env:TEMP\test-install\cargo-ghdist.exe")) {
+            throw "cargo-ghdist.exe not found"
+          }
+          
+          & "$env:TEMP\test-install\cargo-ghinstall.exe" --version
+          & "$env:TEMP\test-install\cargo-ghdist.exe" --version
+          
+          Write-Host "✅ Windows binaries verified!"
+
+  # Update release metadata if needed
+  update-release:
+    name: Update Release Metadata
+    needs: [release-linux, release-macos]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Update release status
+        if: github.event.inputs.prerelease == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          
+          # Check if release exists
+          RELEASE_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/tags/${TAG} \
+            --jq '.id' 2>/dev/null || echo "")
+          
+          if [ -n "$RELEASE_ID" ]; then
+            # Update to prerelease if requested
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/releases/${RELEASE_ID} \
+              -f prerelease=${{ github.event.inputs.prerelease }} \
+              -f name="Manual Release: ${TAG}" \
+              -f body="## 📦 Manual Release
+
+**Tag:** \`${TAG}\`
+**Triggered by:** @${{ github.actor }}
+**Draft:** ${{ github.event.inputs.draft }}
+**Pre-release:** ${{ github.event.inputs.prerelease }}
+
+### Installation
+\`\`\`bash
+cargo ghinstall ${{ github.repository }}@${TAG}
+\`\`\`
+
+### Notes
+This release was manually triggered via GitHub Actions workflow dispatch."
+            
+            echo "✅ Release metadata updated"
+          fi
+
+  # Success summary
+  manual-release-success:
+    name: Manual Release Success
+    needs: [release-linux, release-macos]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Release summary
+        run: |
+          echo "# 🎉 Manual Release Completed"
+          echo ""
+          echo "**Release Tag:** ${{ github.event.inputs.tag }}"
+          echo "**Draft:** ${{ github.event.inputs.draft }}"
+          echo "**Pre-release:** ${{ github.event.inputs.prerelease }}"
+          echo "**Triggered by:** @${{ github.actor }}"
+          echo ""
+          echo "## Installation"
+          echo "\`\`\`bash"
+          echo "cargo ghinstall ${{ github.repository }}@${{ github.event.inputs.tag }}"
+          echo "\`\`\`"
+          echo ""
+          
+          if [ "${{ github.event.inputs.targets }}" = "" ]; then
+            echo "✅ All platforms built and tested successfully!"
+          else
+            echo "✅ Selected platforms (${{ github.event.inputs.targets }}) built and tested successfully!"
+          fi

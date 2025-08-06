@@ -1,0 +1,301 @@
+name: Continuous Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write  # For release creation and asset upload
+
+jobs:
+  # Create release with git SHA
+  create-continuous-release:
+    name: Create Continuous Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.get_tag.outputs.tag }}
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for commit messages
+      
+      - name: Get release tag
+        id: get_tag
+        run: |
+          # Use short SHA as tag
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          FULL_SHA=$(git rev-parse HEAD)
+          TIMESTAMP=$(date -u +"%Y%m%d-%H%M%S")
+          
+          # Create tag name with timestamp and short SHA
+          TAG="dev-${TIMESTAMP}-${SHORT_SHA}"
+          
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "full_sha=${FULL_SHA}" >> $GITHUB_OUTPUT
+          
+          echo "📦 Creating continuous release: ${TAG}"
+          echo "🔨 Commit: ${FULL_SHA}"
+      
+      - name: Get commit message
+        id: commit_msg
+        run: |
+          # Get the commit message for release description
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          COMMIT_BODY=$(git log -1 --pretty=format:"%b")
+          AUTHOR=$(git log -1 --pretty=format:"%an")
+          
+          # Save to environment
+          echo "commit_msg=${COMMIT_MSG}" >> $GITHUB_OUTPUT
+          echo "commit_body<<EOF" >> $GITHUB_OUTPUT
+          echo "${COMMIT_BODY}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "author=${AUTHOR}" >> $GITHUB_OUTPUT
+
+  # Linux builds
+  release-linux:
+    name: Release (Linux)
+    needs: create-continuous-release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
+
+      - name: Install cross-compilation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build cargo-ghdist
+        run: |
+          cargo build --release --bin cargo-ghdist
+          cp target/release/cargo-ghdist ~/.cargo/bin/ || true
+
+      - name: Run cargo-ghdist (Linux)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.create-continuous-release.outputs.release_tag }}"
+          
+          # Create release with development/prerelease flag
+          cargo ghdist \
+            --tag "$TAG" \
+            --targets x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu \
+            --format tgz \
+            --draft  # Mark as draft/prerelease
+
+      # Test installation
+      - name: Build cargo-ghinstall for testing
+        run: |
+          cargo build --release --bin cargo-ghinstall
+          cp target/release/cargo-ghinstall ~/.cargo/bin/ || true
+
+      - name: Wait for release assets
+        run: sleep 10
+
+      - name: Test installation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.create-continuous-release.outputs.release_tag }}"
+          cargo ghinstall ${{ github.repository }}@${TAG} \
+            --install-dir /tmp/test-install \
+            --bins
+
+      - name: Verify binaries
+        run: |
+          test -x /tmp/test-install/cargo-ghinstall
+          test -x /tmp/test-install/cargo-ghdist
+          /tmp/test-install/cargo-ghinstall --version
+          /tmp/test-install/cargo-ghdist --version
+          echo "✅ Linux binaries verified!"
+
+  # macOS builds
+  release-macos:
+    name: Release (macOS)
+    needs: create-continuous-release
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Build cargo-ghdist
+        run: |
+          cargo build --release --bin cargo-ghdist
+          cp target/release/cargo-ghdist ~/.cargo/bin/ || true
+
+      - name: Run cargo-ghdist (macOS)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.create-continuous-release.outputs.release_tag }}"
+          cargo ghdist \
+            --tag "$TAG" \
+            --targets x86_64-apple-darwin,aarch64-apple-darwin \
+            --format tgz \
+            --draft
+
+      # Test installation
+      - name: Build cargo-ghinstall for testing
+        run: |
+          cargo build --release --bin cargo-ghinstall
+          cp target/release/cargo-ghinstall ~/.cargo/bin/ || true
+
+      - name: Wait for release assets
+        run: sleep 10
+
+      - name: Test installation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.create-continuous-release.outputs.release_tag }}"
+          cargo ghinstall ${{ github.repository }}@${TAG} \
+            --install-dir /tmp/test-install \
+            --bins
+
+      - name: Verify binaries
+        run: |
+          test -x /tmp/test-install/cargo-ghinstall
+          test -x /tmp/test-install/cargo-ghdist
+          /tmp/test-install/cargo-ghinstall --version
+          /tmp/test-install/cargo-ghdist --version
+          echo "✅ macOS binaries verified!"
+
+  # Publish draft release
+  publish-release:
+    name: Publish Draft Release
+    needs: [create-continuous-release, release-linux, release-macos]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Update release status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.create-continuous-release.outputs.release_tag }}"
+          
+          # Get release ID
+          RELEASE_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/tags/${TAG} \
+            --jq '.id')
+          
+          if [ -n "$RELEASE_ID" ]; then
+            # Update release from draft to prerelease
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/releases/${RELEASE_ID} \
+              -f draft=false \
+              -f prerelease=true \
+              -f name="Development Build: ${TAG}" \
+              -f body="## 🚀 Continuous Release
+
+**Commit:** \`${{ github.sha }}\`
+**Author:** ${{ github.actor }}
+**Branch:** ${{ github.ref_name }}
+
+### 📝 Commit Message
+${{ github.event.head_commit.message }}
+
+### ⚠️ Note
+This is an automated development build. Use for testing purposes only.
+For stable releases, please use tagged versions.
+
+### 📦 Installation
+\`\`\`bash
+# Install with cargo-ghinstall
+cargo ghinstall ${{ github.repository }}@${TAG}
+\`\`\`
+
+### 🔗 Links
+- [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+- [Compare](${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }})"
+            
+            echo "✅ Release published as prerelease: ${TAG}"
+          else
+            echo "⚠️ Could not find release with tag: ${TAG}"
+          fi
+
+  # Cleanup old continuous releases (keep last 5)
+  cleanup-old-releases:
+    name: Cleanup Old Releases
+    needs: publish-release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Delete old continuous releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # List all releases with 'dev-' prefix
+          RELEASES=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases \
+            --jq '.[] | select(.tag_name | startswith("dev-")) | {id: .id, tag: .tag_name, created: .created_at}')
+          
+          # Keep only the 5 most recent dev releases
+          echo "$RELEASES" | jq -s 'sort_by(.created) | reverse | .[5:] | .[]' | while read -r release; do
+            if [ -n "$release" ]; then
+              RELEASE_ID=$(echo "$release" | jq -r '.id')
+              RELEASE_TAG=$(echo "$release" | jq -r '.tag')
+              
+              echo "🗑️ Deleting old release: ${RELEASE_TAG}"
+              
+              # Delete the release
+              gh api \
+                --method DELETE \
+                -H "Accept: application/vnd.github+json" \
+                /repos/${{ github.repository }}/releases/${RELEASE_ID}
+              
+              # Delete the tag
+              gh api \
+                --method DELETE \
+                -H "Accept: application/vnd.github+json" \
+                /repos/${{ github.repository }}/git/refs/tags/${RELEASE_TAG} || true
+            fi
+          done
+          
+          echo "✅ Cleanup completed"
+
+  # Success notification
+  continuous-release-success:
+    name: Continuous Release Success
+    needs: [publish-release]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Release summary
+        run: |
+          echo "# 🎉 Continuous Release Completed"
+          echo ""
+          echo "**Release Tag:** ${{ needs.create-continuous-release.outputs.release_tag }}"
+          echo "**Commit:** ${{ github.sha }}"
+          echo "**Branch:** ${{ github.ref_name }}"
+          echo ""
+          echo "## Installation"
+          echo "\`\`\`bash"
+          echo "cargo ghinstall ${{ github.repository }}@${{ needs.create-continuous-release.outputs.release_tag }}"
+          echo "\`\`\`"
+          echo ""
+          echo "✅ All platforms built and tested successfully!"
