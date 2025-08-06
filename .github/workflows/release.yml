@@ -13,7 +13,7 @@ permissions:
   contents: write  # For release creation and asset upload
 
 jobs:
-  # Determine release type and create tag if needed
+  # Determine release type
   prepare-release:
     name: Prepare Release
     runs-on: ubuntu-latest
@@ -25,7 +25,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
       
-      - name: Determine release tag
+      - name: Determine release type
         id: get_tag
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
@@ -35,29 +35,11 @@ jobs:
             echo "is_continuous=false" >> $GITHUB_OUTPUT
             echo "📦 Tagged release: ${TAG}"
           else
-            # Continuous release - create dev tag
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
-            TIMESTAMP=$(date -u +"%Y%m%d-%H%M%S")
-            TAG="dev-${TIMESTAMP}-${SHORT_SHA}"
-            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+            # Continuous release - will use --hash option
+            echo "tag=" >> $GITHUB_OUTPUT  # No tag needed
             echo "is_continuous=true" >> $GITHUB_OUTPUT
-            echo "🚀 Continuous release: ${TAG}"
+            echo "🚀 Continuous release: will use --hash option"
           fi
-      
-      - name: Create continuous release tag
-        if: steps.get_tag.outputs.is_continuous == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ steps.get_tag.outputs.tag }}"
-          
-          # Create lightweight tag for this commit
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${TAG}"
-          git push origin "${TAG}"
-          
-          echo "✅ Created continuous release tag: ${TAG}"
 
   # Linux builds
   release-linux:
@@ -87,13 +69,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Use the tag from prepare-release
-          TAG="${{ needs.prepare-release.outputs.release_tag }}"
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
           
-          cargo ghdist \
-            --tag "${TAG}" \
-            --targets x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu \
-            --repository ${{ github.repository }}
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # Continuous release - use --hash option
+            cargo ghdist \
+              --hash \
+              --targets x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu \
+              --repository ${{ github.repository }}
+          else
+            # Tagged release
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            cargo ghdist \
+              --tag "${TAG}" \
+              --targets x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu \
+              --repository ${{ github.repository }}
+          fi
 
   # macOS builds
   release-macos:
@@ -118,13 +109,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Use the tag from prepare-release
-          TAG="${{ needs.prepare-release.outputs.release_tag }}"
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
           
-          cargo ghdist \
-            --tag "${TAG}" \
-            --targets x86_64-apple-darwin,aarch64-apple-darwin \
-            --repository ${{ github.repository }}
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # Continuous release - use --hash option
+            cargo ghdist \
+              --hash \
+              --targets x86_64-apple-darwin,aarch64-apple-darwin \
+              --repository ${{ github.repository }}
+          else
+            # Tagged release
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            cargo ghdist \
+              --tag "${TAG}" \
+              --targets x86_64-apple-darwin,aarch64-apple-darwin \
+              --repository ${{ github.repository }}
+          fi
 
   # Windows builds
   release-windows:
@@ -150,18 +150,65 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          # Use the tag from prepare-release
-          TAG="${{ needs.prepare-release.outputs.release_tag }}"
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
           
-          cargo ghdist \
-            --tag "${TAG}" \
-            --targets x86_64-pc-windows-msvc \
-            --repository ${{ github.repository }}
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # Continuous release - use --hash option
+            cargo ghdist \
+              --hash \
+              --targets x86_64-pc-windows-msvc \
+              --repository ${{ github.repository }}
+          else
+            # Tagged release
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            cargo ghdist \
+              --tag "${TAG}" \
+              --targets x86_64-pc-windows-msvc \
+              --repository ${{ github.repository }}
+          fi
+
+  # Get the release tag created by cargo-ghdist
+  get-release-tag:
+    name: Get Release Tag
+    needs: [prepare-release, release-linux]
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.find_tag.outputs.tag }}
+    
+    steps:
+      - name: Find release tag
+        id: find_tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
+          
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # For continuous releases with --hash, find the most recent release
+            # that matches the version-sha pattern
+            TAG=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/releases \
+              --jq 'map(select(.tag_name | test("^[0-9]+\\.[0-9]+\\.[0-9]+-[a-f0-9]{7}$"))) | .[0].tag_name')
+            
+            if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+              echo "❌ Could not find release created by cargo-ghdist --hash"
+              exit 1
+            fi
+            
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+            echo "📦 Found continuous release tag: ${TAG}"
+          else
+            # For tagged releases, use the original tag
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+            echo "📦 Using tagged release: ${TAG}"
+          fi
 
   # Publish release (convert draft to published)
   publish-release:
     name: Publish Release
-    needs: [prepare-release, release-linux, release-macos, release-windows]
+    needs: [prepare-release, get-release-tag, release-linux, release-macos, release-windows]
     runs-on: ubuntu-latest
     
     steps:
@@ -173,7 +220,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          TAG="${{ needs.prepare-release.outputs.release_tag }}"
+          TAG="${{ needs.get-release-tag.outputs.release_tag }}"
           IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
           
           # Get release ID
@@ -216,7 +263,7 @@ jobs:
                 /repos/${{ github.repository }}/releases/${RELEASE_ID} \
                 -f draft=false \
                 -f prerelease=true \
-                -f name="Development Build: ${TAG}" \
+                -f name="Development Build (${TAG})" \
                 --field body=@/tmp/release-body.md
               
               echo "✅ Published continuous release: ${TAG}"
@@ -239,7 +286,7 @@ jobs:
   # Test installation
   test-installation:
     name: Test Installation
-    needs: [prepare-release, publish-release]
+    needs: [get-release-tag, publish-release]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -258,7 +305,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          TAG="${{ needs.prepare-release.outputs.release_tag }}"
+          TAG="${{ needs.get-release-tag.outputs.release_tag }}"
           
           # Create a temporary directory
           if [[ "$RUNNER_OS" == "Windows" ]]; then
@@ -279,13 +326,13 @@ jobs:
   # Success notification
   release-success:
     name: Release Success
-    needs: [prepare-release, test-installation]
+    needs: [prepare-release, get-release-tag, test-installation]
     runs-on: ubuntu-latest
     
     steps:
       - name: Release summary
         run: |
-          TAG="${{ needs.prepare-release.outputs.release_tag }}"
+          TAG="${{ needs.get-release-tag.outputs.release_tag }}"
           IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
           
           if [ "$IS_CONTINUOUS" = "true" ]; then
