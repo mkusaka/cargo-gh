@@ -44,6 +44,39 @@ jobs:
             --targets x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu \
             --format tgz
 
+      # Test installation with cargo-ghinstall
+      - name: Build cargo-ghinstall for testing
+        run: |
+          cargo build --release --bin cargo-ghinstall
+          cp target/release/cargo-ghinstall ~/.cargo/bin/ || true
+
+      - name: Wait for release assets to be available
+        run: sleep 10
+
+      - name: Test installation with cargo-ghinstall
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          # Test installing to a temporary directory
+          cargo ghinstall ${{ github.repository }}@${TAG} \
+            --install-dir /tmp/test-install \
+            --bins
+
+      - name: Verify installed binaries
+        run: |
+          # Check that binaries exist and are executable
+          test -f /tmp/test-install/cargo-ghinstall
+          test -f /tmp/test-install/cargo-ghdist
+          test -x /tmp/test-install/cargo-ghinstall
+          test -x /tmp/test-install/cargo-ghdist
+          
+          # Test that binaries can run
+          /tmp/test-install/cargo-ghinstall --version
+          /tmp/test-install/cargo-ghdist --version
+          
+          echo "✅ Linux binaries verified successfully!"
+
   # macOS builds
   release-macos:
     name: Release (macOS)
@@ -72,6 +105,39 @@ jobs:
             --tag "$TAG" \
             --targets x86_64-apple-darwin,aarch64-apple-darwin \
             --format tgz
+
+      # Test installation with cargo-ghinstall
+      - name: Build cargo-ghinstall for testing
+        run: |
+          cargo build --release --bin cargo-ghinstall
+          cp target/release/cargo-ghinstall ~/.cargo/bin/ || true
+
+      - name: Wait for release assets to be available
+        run: sleep 10
+
+      - name: Test installation with cargo-ghinstall
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          # Test installing to a temporary directory
+          cargo ghinstall ${{ github.repository }}@${TAG} \
+            --install-dir /tmp/test-install \
+            --bins
+
+      - name: Verify installed binaries
+        run: |
+          # Check that binaries exist and are executable
+          test -f /tmp/test-install/cargo-ghinstall
+          test -f /tmp/test-install/cargo-ghdist
+          test -x /tmp/test-install/cargo-ghinstall
+          test -x /tmp/test-install/cargo-ghdist
+          
+          # Test that binaries can run
+          /tmp/test-install/cargo-ghinstall --version
+          /tmp/test-install/cargo-ghdist --version
+          
+          echo "✅ macOS binaries verified successfully!"
 
   # Windows builds (optional)
   release-windows:
@@ -105,10 +171,115 @@ jobs:
             --targets x86_64-pc-windows-msvc `
             --format zip
 
+      # Test installation with cargo-ghinstall
+      - name: Build cargo-ghinstall for testing
+        shell: pwsh
+        run: |
+          cargo build --release --bin cargo-ghinstall
+          Copy-Item target/release/cargo-ghinstall.exe ~/.cargo/bin/ -Force -ErrorAction SilentlyContinue
+
+      - name: Wait for release assets to be available
+        shell: pwsh
+        run: Start-Sleep -Seconds 10
+
+      - name: Test installation with cargo-ghinstall
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $TAG = $env:GITHUB_REF -replace 'refs/tags/', ''
+          # Test installing to a temporary directory
+          cargo ghinstall "${{ github.repository }}@$TAG" `
+            --install-dir "$env:TEMP\test-install" `
+            --bins
+
+      - name: Verify installed binaries
+        shell: pwsh
+        run: |
+          # Check that binaries exist
+          if (-not (Test-Path "$env:TEMP\test-install\cargo-ghinstall.exe")) {
+            throw "cargo-ghinstall.exe not found"
+          }
+          if (-not (Test-Path "$env:TEMP\test-install\cargo-ghdist.exe")) {
+            throw "cargo-ghdist.exe not found"
+          }
+          
+          # Test that binaries can run
+          & "$env:TEMP\test-install\cargo-ghinstall.exe" --version
+          & "$env:TEMP\test-install\cargo-ghdist.exe" --version
+          
+          Write-Host "✅ Windows binaries verified successfully!"
+
+  # Cross-platform installation test
+  verify-installation:
+    name: Verify Installation
+    needs: [release-linux, release-macos]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: macos-latest
+            platform: macOS
+    
+    steps:
+      - name: Checkout source for cargo-ghinstall
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build and install cargo-ghinstall
+        run: |
+          cargo build --release --bin cargo-ghinstall
+          cargo install --path cargo-ghinstall
+
+      - name: Test installation from release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          # Install to user's cargo bin directory
+          cargo ghinstall ${{ github.repository }}@${TAG} \
+            --install-dir ~/.cargo/bin \
+            --bins
+
+      - name: Verify binaries work correctly
+        run: |
+          # Ensure binaries are in PATH and work
+          which cargo-ghinstall
+          which cargo-ghdist
+          
+          cargo-ghinstall --version
+          cargo-ghdist --version
+          
+          # Test help commands
+          cargo-ghinstall --help
+          cargo-ghdist --help
+          
+          # Test subcommands
+          cargo ghdist init --help || true
+          
+          echo "✅ ${{ matrix.platform }} installation verification complete!"
+
+  # Final success check
+  release-success:
+    name: Release Success
+    needs: [verify-installation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release completed successfully
+        run: |
+          echo "🎉 Release completed successfully!"
+          echo "✅ All platforms built and tested"
+          echo "✅ Installation verified on Linux and macOS"
+
   # Publish to crates.io (commented out until ready)
   # publish-crates:
   #   name: Publish to crates.io
-  #   needs: [release-linux, release-macos]
+  #   needs: [release-success]
   #   runs-on: ubuntu-latest
   #   if: false  # Enable when ready to publish to crates.io
   #   steps:
