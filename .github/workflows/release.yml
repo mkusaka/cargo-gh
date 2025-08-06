@@ -54,7 +54,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.88.0
           target: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
           rustflags: ""
 
@@ -106,7 +106,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.88.0
           target: x86_64-apple-darwin,aarch64-apple-darwin
           rustflags: ""
 
@@ -148,7 +148,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.88.0
           target: x86_64-pc-windows-msvc
           rustflags: ""
 

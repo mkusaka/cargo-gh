@@ -20,7 +20,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.88.0
           components: rustfmt
           rustflags: ""
       
@@ -36,7 +36,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.88.0
           components: clippy
           rustflags: ""
       
@@ -61,7 +61,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, beta]
+        rust: [1.88.0, beta]
     steps:
       - uses: actions/checkout@v4
       
@@ -115,7 +115,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.88.0
           target: ${{ matrix.target }}
           rustflags: ""
       
@@ -151,7 +151,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.88.0
           rustflags: ""
       
       - name: Install cargo-audit
