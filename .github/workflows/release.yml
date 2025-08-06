@@ -94,9 +94,9 @@ jobs:
               --repository ${{ github.repository }}
           fi
 
-  # macOS builds
-  release-macos:
-    name: Release (macOS)
+  # macOS ARM64 builds
+  release-macos-arm64:
+    name: Release (macOS ARM64)
     needs: prepare-release
     runs-on: macos-latest
 
@@ -108,12 +108,8 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: 1.88.0
-          target: x86_64-apple-darwin,aarch64-apple-darwin
+          target: aarch64-apple-darwin
           rustflags: ""
-
-      - name: Set up cross-compilation environment
-        run: |
-          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
 
       - name: Install cargo-ghdist from source
         run: |
@@ -129,14 +125,56 @@ jobs:
             # Continuous release - use --hash option
             cargo ghdist \
               --hash \
-              --targets x86_64-apple-darwin,aarch64-apple-darwin \
+              --targets aarch64-apple-darwin \
               --repository ${{ github.repository }}
           else
             # Tagged release
             TAG="${{ needs.prepare-release.outputs.release_tag }}"
             cargo ghdist \
               --tag "${TAG}" \
-              --targets x86_64-apple-darwin,aarch64-apple-darwin \
+              --targets aarch64-apple-darwin \
+              --repository ${{ github.repository }}
+          fi
+
+  # macOS x86_64 builds
+  release-macos-x64:
+    name: Release (macOS x64)
+    needs: prepare-release
+    runs-on: macos-13  # Intel runner
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.88.0
+          target: x86_64-apple-darwin
+          rustflags: ""
+
+      - name: Install cargo-ghdist from source
+        run: |
+          cargo install --path ./cargo-ghdist
+          
+      - name: Build with cargo-ghdist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
+          
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # Continuous release - use --hash option
+            cargo ghdist \
+              --hash \
+              --targets x86_64-apple-darwin \
+              --repository ${{ github.repository }}
+          else
+            # Tagged release
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            cargo ghdist \
+              --tag "${TAG}" \
+              --targets x86_64-apple-darwin \
               --repository ${{ github.repository }}
           fi
 
@@ -186,7 +224,7 @@ jobs:
   # Get the release tag created by cargo-ghdist
   get-release-tag:
     name: Get Release Tag
-    needs: [prepare-release, release-linux, release-macos, release-windows]
+    needs: [prepare-release, release-linux, release-macos-arm64, release-macos-x64, release-windows]
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.find_tag.outputs.tag }}
@@ -224,7 +262,7 @@ jobs:
   # Publish release (convert draft to published)
   publish-release:
     name: Publish Release
-    needs: [prepare-release, get-release-tag, release-linux, release-macos, release-windows]
+    needs: [prepare-release, get-release-tag, release-linux, release-macos-arm64, release-macos-x64, release-windows]
     runs-on: ubuntu-latest
     
     steps:
