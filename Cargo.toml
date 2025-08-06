@@ -11,7 +11,7 @@ repository = "https://github.com/mkusaka/cargo-gh"
 
 [workspace.dependencies]
 clap = { version = "4.5", features = ["derive", "env"] }
-octocrab = { version = "0.38", default-features = false, features = ["rustls"] }
+octocrab = { version = "0.38", default-features = false, features = ["rustls", "default-client"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 tokio = { version = "1.39", features = ["full"] }
 tar = "0.4"
