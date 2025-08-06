@@ -25,8 +25,8 @@ pub struct GhdistCli {
     #[clap(short, long, global = true)]
     pub tag: Option<String>,
 
-    /// Use commit hash as tag if no tag exists on HEAD
-    /// This will use the first 8 characters of the commit SHA
+    /// Generate version-sha tag if no tag exists on HEAD
+    /// Creates a tag in format: {version}-{sha} (e.g., 0.1.0-abc12345)
     #[clap(long, global = true)]
     pub hash: bool,
 

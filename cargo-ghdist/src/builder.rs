@@ -139,6 +139,35 @@ impl DistBuilder {
         Ok(())
     }
 
+    /// Get package version from Cargo.toml
+    fn get_package_version(&self) -> Result<String> {
+        let cargo_toml = fs::read_to_string("Cargo.toml")
+            .context("Failed to read Cargo.toml")?;
+        let manifest: toml::Value = toml::from_str(&cargo_toml)
+            .context("Failed to parse Cargo.toml")?;
+        
+        // Try to get version from [package] section first
+        if let Some(version) = manifest
+            .get("package")
+            .and_then(|p| p.get("version"))
+            .and_then(|v| v.as_str())
+        {
+            return Ok(version.to_string());
+        }
+        
+        // If no package section, try workspace.package section (for workspace projects)
+        if let Some(version) = manifest
+            .get("workspace")
+            .and_then(|w| w.get("package"))
+            .and_then(|p| p.get("version"))
+            .and_then(|v| v.as_str())
+        {
+            return Ok(version.to_string());
+        }
+        
+        anyhow::bail!("No version field found in Cargo.toml")
+    }
+
     /// Get tag from args or detect from git
     fn get_tag(&self) -> Result<String> {
         if let Some(tag) = &self.args.tag {
@@ -166,19 +195,24 @@ impl DistBuilder {
             }
         }
 
-        // If no tag found and --hash is specified, use commit SHA as fallback
+        // If no tag found and --hash is specified, use version-sha format
         if self.args.hash {
             let short_sha = oid.to_string()[..8].to_string();
+            
+            // Read version from Cargo.toml
+            let version = self.get_package_version()?;
+            let tag = format!("{version}-{short_sha}");
+            
             tracing::info!(
-                "No tag found on HEAD. Using commit SHA as tag: {}",
-                short_sha
+                "No tag found on HEAD. Using version-sha format as tag: {}",
+                tag
             );
-            Ok(short_sha)
+            Ok(tag)
         } else {
             // If no tag found and --hash not specified, suggest using --tag or --hash
             anyhow::bail!(
                 "No tag found on current HEAD. Please create a tag first with 'git tag <version>', \
-                 specify a tag explicitly with --tag, or use --hash to use commit SHA"
+                 specify a tag explicitly with --tag, or use --hash to generate version-sha tag"
             )
         }
     }

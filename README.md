@@ -129,7 +129,7 @@ Build and distribute binaries to GitHub Releases.
 # Build and release for default targets (requires a tag on HEAD)
 cargo ghdist
 
-# Use commit SHA if no tag exists
+# Generate version-sha tag if no tag exists (e.g., 0.1.0-abc12345)
 cargo ghdist --hash
 
 # Release with specific version tag (with or without 'v' prefix)
@@ -163,7 +163,7 @@ cargo ghdist \
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-t, --tag <TAG>` | Release tag (e.g., `v1.2.3`, `abcdef0`, `main`) | Tag on HEAD |
-| `--hash` | Use commit SHA as tag if no tag exists on HEAD | Off |
+| `--hash` | Generate `{version}-{sha}` tag if no tag exists | Off |
 | `-T, --targets <LIST>` | Build targets (comma-separated) | `x86_64-unknown-linux-gnu,`<br>`aarch64-unknown-linux-gnu` |
 | `-f, --format <FMT>` | Archive format (`tgz` or `zip`) | `tgz` |
 | `--draft` | Create as draft release | Off |
