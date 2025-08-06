@@ -195,6 +195,7 @@ jobs:
       - name: Update release status
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           TAG="${{ needs.create-continuous-release.outputs.release_tag }}"
           
@@ -205,6 +206,32 @@ jobs:
             --jq '.id')
           
           if [ -n "$RELEASE_ID" ]; then
+            # Create release body with proper escaping
+            {
+              echo "## 🚀 Continuous Release"
+              echo ""
+              echo "**Commit:** \`${{ github.sha }}\`"
+              echo "**Author:** ${{ github.actor }}"
+              echo "**Branch:** ${{ github.ref_name }}"
+              echo ""
+              echo "### 📝 Commit Message"
+              echo "${COMMIT_MESSAGE}"
+              echo ""
+              echo "### ⚠️ Note"
+              echo "This is an automated development build. Use for testing purposes only."
+              echo "For stable releases, please use tagged versions."
+              echo ""
+              echo "### 📦 Installation"
+              echo "\`\`\`bash"
+              echo "# Install with cargo-ghinstall"
+              echo "cargo ghinstall ${{ github.repository }}@${TAG}"
+              echo "\`\`\`"
+              echo ""
+              echo "### 🔗 Links"
+              echo "- [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})"
+              echo "- [Compare](${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }})"
+            } > /tmp/release-body.md
+            
             # Update release from draft to prerelease
             gh api \
               --method PATCH \
@@ -213,28 +240,7 @@ jobs:
               -f draft=false \
               -f prerelease=true \
               -f name="Development Build: ${TAG}" \
-              -f body="## 🚀 Continuous Release
-
-**Commit:** \`${{ github.sha }}\`
-**Author:** ${{ github.actor }}
-**Branch:** ${{ github.ref_name }}
-
-### 📝 Commit Message
-${{ github.event.head_commit.message }}
-
-### ⚠️ Note
-This is an automated development build. Use for testing purposes only.
-For stable releases, please use tagged versions.
-
-### 📦 Installation
-\`\`\`bash
-# Install with cargo-ghinstall
-cargo ghinstall ${{ github.repository }}@${TAG}
-\`\`\`
-
-### 🔗 Links
-- [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
-- [Compare](${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }})"
+              --field body=@/tmp/release-body.md
             
             echo "✅ Release published as prerelease: ${TAG}"
           else
@@ -285,7 +291,7 @@ cargo ghinstall ${{ github.repository }}@${TAG}
   # Success notification
   continuous-release-success:
     name: Continuous Release Success
-    needs: [publish-release]
+    needs: [create-continuous-release, publish-release]
     runs-on: ubuntu-latest
     
     steps:

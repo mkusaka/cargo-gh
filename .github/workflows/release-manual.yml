@@ -273,6 +273,24 @@ jobs:
             --jq '.id' 2>/dev/null || echo "")
           
           if [ -n "$RELEASE_ID" ]; then
+            # Create release body
+            {
+              echo "## 📦 Manual Release"
+              echo ""
+              echo "**Tag:** \`${TAG}\`"
+              echo "**Triggered by:** @${{ github.actor }}"
+              echo "**Draft:** ${{ github.event.inputs.draft }}"
+              echo "**Pre-release:** ${{ github.event.inputs.prerelease }}"
+              echo ""
+              echo "### Installation"
+              echo "\`\`\`bash"
+              echo "cargo ghinstall ${{ github.repository }}@${TAG}"
+              echo "\`\`\`"
+              echo ""
+              echo "### Notes"
+              echo "This release was manually triggered via GitHub Actions workflow dispatch."
+            } > /tmp/release-body.md
+            
             # Update to prerelease if requested
             gh api \
               --method PATCH \
@@ -280,20 +298,7 @@ jobs:
               /repos/${{ github.repository }}/releases/${RELEASE_ID} \
               -f prerelease=${{ github.event.inputs.prerelease }} \
               -f name="Manual Release: ${TAG}" \
-              -f body="## 📦 Manual Release
-
-**Tag:** \`${TAG}\`
-**Triggered by:** @${{ github.actor }}
-**Draft:** ${{ github.event.inputs.draft }}
-**Pre-release:** ${{ github.event.inputs.prerelease }}
-
-### Installation
-\`\`\`bash
-cargo ghinstall ${{ github.repository }}@${TAG}
-\`\`\`
-
-### Notes
-This release was manually triggered via GitHub Actions workflow dispatch."
+              --field body=@/tmp/release-body.md
             
             echo "✅ Release metadata updated"
           fi

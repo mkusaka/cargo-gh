@@ -60,7 +60,7 @@ jobs:
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           # Test installing to a temporary directory
-          cargo ghinstall ${{ github.repository }}@${TAG} \
+          cargo ghinstall "${{ github.repository }}@${TAG}" \
             --install-dir /tmp/test-install \
             --bins
 
@@ -122,7 +122,7 @@ jobs:
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           # Test installing to a temporary directory
-          cargo ghinstall ${{ github.repository }}@${TAG} \
+          cargo ghinstall "${{ github.repository }}@${TAG}" \
             --install-dir /tmp/test-install \
             --bins
 
@@ -243,7 +243,7 @@ jobs:
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           # Install to user's cargo bin directory
-          cargo ghinstall ${{ github.repository }}@${TAG} \
+          cargo ghinstall "${{ github.repository }}@${TAG}" \
             --install-dir ~/.cargo/bin \
             --bins
 
