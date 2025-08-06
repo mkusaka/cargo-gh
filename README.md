@@ -126,8 +126,11 @@ Build and distribute binaries to GitHub Releases.
 ### Usage
 
 ```bash
-# Build and release for default targets
+# Build and release for default targets (requires a tag on HEAD)
 cargo ghdist
+
+# Use commit SHA if no tag exists
+cargo ghdist --hash
 
 # Release with specific version tag (with or without 'v' prefix)
 cargo ghdist --tag v1.2.3
@@ -160,6 +163,7 @@ cargo ghdist \
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-t, --tag <TAG>` | Release tag (e.g., `v1.2.3`, `abcdef0`, `main`) | Tag on HEAD |
+| `--hash` | Use commit SHA as tag if no tag exists on HEAD | Off |
 | `-T, --targets <LIST>` | Build targets (comma-separated) | `x86_64-unknown-linux-gnu,`<br>`aarch64-unknown-linux-gnu` |
 | `-f, --format <FMT>` | Archive format (`tgz` or `zip`) | `tgz` |
 | `--draft` | Create as draft release | Off |
@@ -190,7 +194,7 @@ repo = "your-crate"
 
 ### Behavior
 
-1. Detects or uses specified tag
+1. Detects tag (from --tag option, HEAD tag, or commit SHA with --hash)
 2. Builds binaries for each target platform
 3. Creates archives in the specified format
 4. Generates SHA256SUMS if not disabled

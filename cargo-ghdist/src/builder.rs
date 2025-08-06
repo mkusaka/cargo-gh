@@ -166,13 +166,21 @@ impl DistBuilder {
             }
         }
 
-        // If no tag found, use commit SHA as fallback
-        let short_sha = oid.to_string()[..8].to_string();
-        tracing::warn!(
-            "No tag found on HEAD. Using commit SHA as tag: {}",
-            short_sha
-        );
-        Ok(short_sha)
+        // If no tag found and --hash is specified, use commit SHA as fallback
+        if self.args.hash {
+            let short_sha = oid.to_string()[..8].to_string();
+            tracing::info!(
+                "No tag found on HEAD. Using commit SHA as tag: {}",
+                short_sha
+            );
+            Ok(short_sha)
+        } else {
+            // If no tag found and --hash not specified, suggest using --tag or --hash
+            anyhow::bail!(
+                "No tag found on current HEAD. Please create a tag first with 'git tag <version>', \
+                 specify a tag explicitly with --tag, or use --hash to use commit SHA"
+            )
+        }
     }
 
     /// Build binaries for a specific target

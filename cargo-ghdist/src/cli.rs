@@ -21,9 +21,14 @@ pub struct GhdistCli {
     pub command: Option<Command>,
 
     /// Release tag (e.g., v1.2.3, abcdef0, main, or any git ref)
-    /// If not specified, uses the tag on HEAD or commit SHA as fallback
+    /// If not specified, uses the tag on HEAD
     #[clap(short, long, global = true)]
     pub tag: Option<String>,
+
+    /// Use commit hash as tag if no tag exists on HEAD
+    /// This will use the first 8 characters of the commit SHA
+    #[clap(long, global = true)]
+    pub hash: bool,
 
     /// Build targets (comma-separated Rust triple format)
     /// Example: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
@@ -94,6 +99,7 @@ pub enum Command {
 #[derive(Debug, Clone)]
 pub struct Args {
     pub tag: Option<String>,
+    pub hash: bool,
     pub targets: Option<Vec<String>>,
     pub format: ArchiveFormat,
     pub draft: bool,
@@ -112,6 +118,7 @@ impl From<GhdistCli> for Args {
     fn from(cli: GhdistCli) -> Self {
         Args {
             tag: cli.tag,
+            hash: cli.hash,
             targets: cli.targets,
             format: cli.format,
             draft: cli.draft,

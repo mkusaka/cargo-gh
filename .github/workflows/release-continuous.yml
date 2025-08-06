@@ -89,8 +89,10 @@ jobs:
           TAG="${{ needs.create-continuous-release.outputs.release_tag }}"
           
           # Create release with development/prerelease flag
+          # Using --hash to allow commit SHA as tag when no tag exists
           cargo ghdist \
             --tag "$TAG" \
+            --hash \
             --targets x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu \
             --format tgz \
             --draft  # Mark as draft/prerelease
@@ -146,8 +148,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ needs.create-continuous-release.outputs.release_tag }}"
+          # Using --hash to allow commit SHA as tag when no tag exists
           cargo ghdist \
             --tag "$TAG" \
+            --hash \
             --targets x86_64-apple-darwin,aarch64-apple-darwin \
             --format tgz \
             --draft

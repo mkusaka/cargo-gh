@@ -1,5 +1,5 @@
 [workspace]
-members = ["cargo-ghinstall", "cargo-ghdist", "test-no-tag"]
+members = ["cargo-ghinstall", "cargo-ghdist"]
 resolver = "2"
 
 [workspace.package]

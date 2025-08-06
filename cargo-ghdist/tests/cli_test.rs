@@ -4,6 +4,7 @@ use cargo_ghdist::cli::{ArchiveFormat, Args};
 fn test_targets_default() {
     let args = Args {
         tag: None,
+        hash: false,
         targets: None,
         format: ArchiveFormat::Tgz,
         draft: false,
@@ -27,6 +28,7 @@ fn test_targets_default() {
 fn test_targets_override() {
     let args = Args {
         tag: None,
+        hash: false,
         targets: Some(vec![
             "x86_64-apple-darwin".to_string(),
             "aarch64-apple-darwin".to_string(),
@@ -53,6 +55,7 @@ fn test_targets_override() {
 fn test_parse_repository_from_arg() {
     let args = Args {
         tag: None,
+        hash: false,
         targets: None,
         format: ArchiveFormat::Tgz,
         draft: false,
@@ -75,6 +78,7 @@ fn test_parse_repository_from_arg() {
 fn test_parse_repository_invalid_format() {
     let args = Args {
         tag: None,
+        hash: false,
         targets: None,
         format: ArchiveFormat::Tgz,
         draft: false,
@@ -101,6 +105,7 @@ fn test_archive_format_display() {
 fn test_profile_default() {
     let args = Args {
         tag: None,
+        hash: false,
         targets: None,
         format: ArchiveFormat::Tgz,
         draft: false,
@@ -121,6 +126,7 @@ fn test_profile_default() {
 fn test_draft_mode() {
     let args = Args {
         tag: None,
+        hash: false,
         targets: None,
         format: ArchiveFormat::Tgz,
         draft: true,
@@ -141,6 +147,7 @@ fn test_draft_mode() {
 fn test_checksum_generation() {
     let args = Args {
         tag: None,
+        hash: false,
         targets: None,
         format: ArchiveFormat::Tgz,
         draft: false,
@@ -161,6 +168,7 @@ fn test_checksum_generation() {
 fn test_bins_filter() {
     let args = Args {
         tag: None,
+        hash: false,
         targets: None,
         format: ArchiveFormat::Tgz,
         draft: false,
