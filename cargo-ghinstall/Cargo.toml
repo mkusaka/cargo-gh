@@ -1,0 +1,31 @@
+[package]
+name = "cargo-ghinstall"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bzip2 = "0.6.0"
+clap = { workspace = true, features = ["derive", "env"] }
+directories.workspace = true
+flate2.workspace = true
+futures-util = "0.3.31"
+hex.workspace = true
+octocrab.workspace = true
+reqwest = { workspace = true, features = ["json", "stream"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha2.workspace = true
+tar.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["full"] }
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+walkdir = "2.5.0"
+xz2 = "0.1.7"
+zip.workspace = true
