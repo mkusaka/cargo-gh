@@ -224,6 +224,42 @@ cargo ghdist
 
 ## CI/CD Integration
 
+### Release Workflows
+
+This repository includes three types of GitHub Actions workflows for releases:
+
+#### 1. Tagged Releases (`release.yml`)
+Triggered by pushing version tags. Creates stable releases.
+
+```yaml
+# Triggers on:
+# - v1.0.0 (SemVer with v prefix)
+# - 1.0.0 (Direct version)
+# - abc123 (Commit hash tags)
+```
+
+#### 2. Continuous Releases (`release-continuous.yml`)
+Automatically creates pre-releases on every push to main/master.
+
+```yaml
+# Features:
+# - Creates releases with format: dev-YYYYMMDD-HHMMSS-SHA
+# - Marks as pre-release
+# - Automatically cleans up old dev releases (keeps last 5)
+# - Perfect for nightly/continuous deployment
+```
+
+#### 3. Manual Releases (`release-manual.yml`)
+Trigger releases manually with custom parameters via GitHub UI.
+
+```yaml
+# Options:
+# - Custom tag name
+# - Draft/Pre-release flags
+# - Platform selection
+# - Triggered via Actions tab → Manual Release → Run workflow
+```
+
 ### GitHub Actions Example
 
 ```yaml
@@ -236,6 +272,8 @@ on:
       - '[0-9]*'      # Plain version numbers
       - 'release-*'   # Release branches
       - 'nightly-*'   # Nightly builds
+    branches:
+      - main          # Continuous releases
 
 jobs:
   release:
@@ -253,9 +291,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # For continuous releases on push
+          if [[ "${{ github.ref }}" == "refs/heads/"* ]]; then
+            TAG="dev-$(date -u +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
+            DRAFT_FLAG="--draft"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+            DRAFT_FLAG=""
+          fi
+          
           cargo ghdist \
+            --tag "$TAG" \
             --targets x86_64-unknown-linux-gnu,x86_64-apple-darwin,x86_64-pc-windows-msvc \
-            --format tgz
+            --format tgz \
+            $DRAFT_FLAG
 ```
 
 ## Comparison with Similar Tools
