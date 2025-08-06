@@ -59,6 +59,7 @@ impl Config {
     }
 
     /// Get the default configuration file path
+    #[allow(dead_code)]
     pub fn default_path() -> PathBuf {
         directories::BaseDirs::new()
             .map(|dirs| dirs.config_dir().join("ghinstall.toml"))

@@ -1,6 +1,6 @@
 use crate::error::{GhInstallError, Result as GhResult};
 use anyhow::Result;
-use octocrab::{models::repos::Release, Octocrab};
+use octocrab::{Octocrab, models::repos::Release};
 use reqwest::Client;
 
 pub struct GitHubClient {
@@ -125,10 +125,8 @@ impl GitHubClient {
         } else {
             ""
         };
-        
-        let mut temp_file = tempfile::Builder::new()
-            .suffix(extension)
-            .tempfile()?;
+
+        let mut temp_file = tempfile::Builder::new().suffix(extension).tempfile()?;
         let mut stream = response.bytes_stream();
 
         use futures_util::StreamExt;

@@ -1,7 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::fs;
-use std::path::{Path, PathBuf};
 use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 
 const RELEASE_WORKFLOW_TEMPLATE: &str = r#"name: Release
 
@@ -150,7 +150,7 @@ impl Initializer {
             .and_then(|n| n.as_str())
             .unwrap_or("unknown");
 
-        println!("📦 Found package: {}", package_name);
+        println!("📦 Found package: {package_name}");
 
         // Create .config directory if it doesn't exist
         let config_dir = PathBuf::from(".config");
@@ -215,11 +215,9 @@ inherits = "release"
 lto = "thin"
 "#;
 
-        let mut file = fs::OpenOptions::new()
-            .append(true)
-            .open("Cargo.toml")?;
-        
-        writeln!(file, "{}", profile_section)?;
+        let mut file = fs::OpenOptions::new().append(true).open("Cargo.toml")?;
+
+        writeln!(file, "{profile_section}")?;
         println!("✏️  Added [profile.dist] to Cargo.toml");
 
         Ok(())
@@ -227,23 +225,27 @@ lto = "thin"
 
     fn generate_github_workflow(&self) -> Result<()> {
         let workflow_dir = PathBuf::from(".github/workflows");
-        
+
         if !workflow_dir.exists() {
             fs::create_dir_all(&workflow_dir)?;
             println!("📁 Created .github/workflows directory");
         }
 
         let workflow_path = workflow_dir.join("release.yml");
-        
-        if workflow_path.exists() && !self.yes {
-            if !self.confirm("Release workflow already exists. Overwrite?")? {
-                println!("⏭️  Skipping workflow generation");
-                return Ok(());
-            }
+
+        if workflow_path.exists()
+            && !self.yes
+            && !self.confirm("Release workflow already exists. Overwrite?")?
+        {
+            println!("⏭️  Skipping workflow generation");
+            return Ok(());
         }
 
         fs::write(&workflow_path, RELEASE_WORKFLOW_TEMPLATE)?;
-        println!("✏️  Created GitHub Actions workflow: {}", workflow_path.display());
+        println!(
+            "✏️  Created GitHub Actions workflow: {}",
+            workflow_path.display()
+        );
 
         Ok(())
     }
@@ -253,7 +255,7 @@ lto = "thin"
             return Ok(true);
         }
 
-        print!("{} (y/N): ", prompt);
+        print!("{prompt} (y/N): ");
         io::stdout().flush()?;
 
         let mut input = String::new();

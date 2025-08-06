@@ -1,6 +1,6 @@
 use crate::error::{GhDistError, Result as GhResult};
 use anyhow::Result;
-use octocrab::{models::repos::Release, Octocrab};
+use octocrab::{Octocrab, models::repos::Release};
 use reqwest::Client;
 use std::path::Path;
 
@@ -128,9 +128,7 @@ impl GitHubClient {
 
     /// Delete an existing asset from a release
     pub async fn delete_asset(&self, owner: &str, repo: &str, asset_id: u64) -> Result<()> {
-        let url = format!(
-            "https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}"
-        );
+        let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}");
 
         let response = self
             .http_client

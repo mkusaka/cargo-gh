@@ -7,7 +7,7 @@ use std::process::Command;
 use crate::cli::Args;
 use crate::config::Config;
 use crate::error::{GhDistError, Result as GhResult};
-use crate::github::{get_content_type, GitHubClient};
+use crate::github::{GitHubClient, get_content_type};
 use crate::packager;
 
 pub struct DistBuilder {
@@ -148,7 +148,7 @@ impl DistBuilder {
         // Try to get tag from git HEAD
         let repo = Repository::open(".").context(
             "Failed to find git repository. Please run this command from a git repository \
-             or specify a tag explicitly with --tag"
+             or specify a tag explicitly with --tag",
         )?;
 
         let head = repo.head().context("Failed to get git HEAD")?;
@@ -329,11 +329,13 @@ mod tests {
             fs::write(&binary_path, b"test").unwrap();
 
             // Test Windows executable detection
-            assert!(binary_path
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| ext.eq_ignore_ascii_case("exe"))
-                .unwrap_or(false));
+            assert!(
+                binary_path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| ext.eq_ignore_ascii_case("exe"))
+                    .unwrap_or(false)
+            );
         }
     }
 }

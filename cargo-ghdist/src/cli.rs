@@ -100,6 +100,7 @@ pub struct Args {
     pub skip_publish: bool,
     pub no_checksum: bool,
     pub config: Option<PathBuf>,
+    #[allow(dead_code)]
     pub verbose: bool,
     pub repository: Option<String>,
     pub github_token: Option<String>,
