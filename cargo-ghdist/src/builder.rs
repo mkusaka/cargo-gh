@@ -166,6 +166,15 @@ impl DistBuilder {
     fn get_package_version(&self) -> Result<String> {
         let manifest = Manifest::from_path("Cargo.toml").context("Failed to parse Cargo.toml")?;
 
+        // Check if this is a workspace manifest with workspace.package.version
+        if let Some(workspace) = &manifest.workspace {
+            if let Some(ws_package) = &workspace.package {
+                if let Some(version) = &ws_package.version {
+                    return Ok(version.clone());
+                }
+            }
+        }
+
         // Get version from package
         if let Some(package) = manifest.package {
             match package.version {
@@ -434,12 +443,12 @@ edition = "2021"
 "#;
         fs::write("Cargo.toml", cargo_toml).unwrap();
 
-        // Test get_package_version directly
-        // We can't easily test this without refactoring the struct,
-        // so we'll test via the manifest directly
+        // Test get_package_version directly via manifest parsing
         let manifest = Manifest::from_path("Cargo.toml").unwrap();
-        let version = manifest.package.unwrap().version.unwrap();
-        if let cargo_manifest::MaybeInherited::Local(v) = version {
+        assert!(manifest.package.is_some());
+        let package = manifest.package.unwrap();
+        assert!(package.version.is_some());
+        if let Some(cargo_manifest::MaybeInherited::Local(v)) = package.version {
             assert_eq!(v, "1.2.3");
         } else {
             panic!("Expected local version");
@@ -503,6 +512,42 @@ edition.workspace = true
             }
             _ => panic!("Expected inherited version"),
         }
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_get_package_version_from_workspace_root() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+
+        // Change to temp directory
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a workspace Cargo.toml with version in workspace.package
+        let workspace_toml = r#"
+[workspace]
+members = ["test-package"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Test Author"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/test/test"
+"#;
+        fs::write("Cargo.toml", workspace_toml).unwrap();
+
+        // Test that version can be extracted from workspace.package
+        let manifest = Manifest::from_path("Cargo.toml").unwrap();
+        assert!(manifest.workspace.is_some());
+        let ws = manifest.workspace.unwrap();
+        assert!(ws.package.is_some());
+        let ws_package = ws.package.unwrap();
+        assert!(ws_package.version.is_some());
+        assert_eq!(ws_package.version.unwrap(), "0.1.0");
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
