@@ -18,10 +18,10 @@ pub enum CargoCli {
 #[clap(version, about, long_about = None)]
 pub struct Args {
     /// Repository in format owner/repo[@tag]
-    /// Examples: rust-lang/rust-analyzer@v1.2.3, owner/repo@vabcdef0
+    /// Examples: rust-lang/rust-analyzer@v1.2.3, owner/repo@abcdef0, owner/repo@main
     pub repo: String,
 
-    /// Release tag (e.g., v1.2.3 or vabcdef0)
+    /// Release tag (e.g., v1.2.3, abcdef0, main, or any git ref)
     #[clap(short, long)]
     pub tag: Option<String>,
 

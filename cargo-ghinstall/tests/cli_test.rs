@@ -67,6 +67,50 @@ fn test_parse_repo_with_hash_tag() {
 }
 
 #[test]
+fn test_parse_repo_with_plain_hash() {
+    let args = Args {
+        repo: "owner/repo@abcdef0".to_string(),
+        tag: None,
+        bin: None,
+        bins: false,
+        target: None,
+        install_dir: "~/.cargo/bin".to_string(),
+        show_notes: false,
+        verify_signature: false,
+        no_fallback: false,
+        config: None,
+        verbose: false,
+    };
+
+    let (owner, repo, tag) = args.parse_repo().unwrap();
+    assert_eq!(owner, "owner");
+    assert_eq!(repo, "repo");
+    assert_eq!(tag, Some("abcdef0".to_string()));
+}
+
+#[test]
+fn test_parse_repo_with_branch_name() {
+    let args = Args {
+        repo: "owner/repo@main".to_string(),
+        tag: None,
+        bin: None,
+        bins: false,
+        target: None,
+        install_dir: "~/.cargo/bin".to_string(),
+        show_notes: false,
+        verify_signature: false,
+        no_fallback: false,
+        config: None,
+        verbose: false,
+    };
+
+    let (owner, repo, tag) = args.parse_repo().unwrap();
+    assert_eq!(owner, "owner");
+    assert_eq!(repo, "repo");
+    assert_eq!(tag, Some("main".to_string()));
+}
+
+#[test]
 fn test_parse_repo_invalid_format() {
     let args = Args {
         repo: "invalid-format".to_string(),

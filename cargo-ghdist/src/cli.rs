@@ -17,7 +17,7 @@ pub enum CargoCli {
 #[derive(Parser, Debug, Clone)]
 #[clap(version, about, long_about = None)]
 pub struct Args {
-    /// Release tag (e.g., v1.2.3 or vabcdef0)
+    /// Release tag (e.g., v1.2.3, abcdef0, main, or any git ref)
     /// If not specified, uses the tag on HEAD
     #[clap(short, long)]
     pub tag: Option<String>,

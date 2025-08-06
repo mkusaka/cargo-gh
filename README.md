@@ -1,6 +1,6 @@
 # cargo-gh
 
-GitHub Releases integration for Cargo - Install and distribute binaries via GitHub Releases with support for both SemVer and commit hash tags.
+GitHub Releases integration for Cargo - Install and distribute binaries via GitHub Releases with support for any tag format including SemVer tags, commit hashes, and branch names.
 
 ## Overview
 
@@ -9,7 +9,13 @@ This repository provides two Cargo subcommands:
 - **`cargo-ghinstall`**: Install prebuilt binaries from GitHub Releases
 - **`cargo-ghdist`**: Build and distribute binaries to GitHub Releases
 
-Both commands support traditional semantic version tags (e.g., `v1.2.3`) and commit hash tags (e.g., `vabcdef0`), making them flexible for various release workflows.
+Both commands support any tag format including:
+- Semantic version tags (e.g., `v1.2.3`, `1.0.0`)
+- Commit hashes (e.g., `abcdef0`, `vabcdef0`)
+- Branch names (e.g., `main`, `develop`)
+- Any other git reference
+
+This flexibility makes them suitable for various release workflows.
 
 ## Installation
 
@@ -35,8 +41,12 @@ cargo ghinstall owner/repo
 # Install specific version (SemVer)
 cargo ghinstall owner/repo@v1.2.3
 
-# Install from commit hash tag
+# Install from commit hash (with or without 'v' prefix)
+cargo ghinstall owner/repo@abcdef0
 cargo ghinstall owner/repo@vabcdef0
+
+# Install from branch name
+cargo ghinstall owner/repo@main
 
 # Install with options
 cargo ghinstall owner/repo \
@@ -50,7 +60,7 @@ cargo ghinstall owner/repo \
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-t, --tag <TAG>` | Release tag (e.g., `v1.2.3` or `vabcdef0`) | `latest` |
+| `-t, --tag <TAG>` | Release tag (e.g., `v1.2.3`, `abcdef0`, `main`) | `latest` |
 | `-b, --bin <NAME>` | Binary name or pattern to install | Repository name |
 | `--bins` | Install all binaries from the repository | — |
 | `-T, --target <TRIPLE>` | Platform target (e.g., `aarch64-apple-darwin`) | Host platform |
@@ -97,8 +107,12 @@ cargo ghdist
 # Release with specific tag
 cargo ghdist --tag v1.2.3
 
-# Release from commit hash
+# Release from commit hash (with or without 'v' prefix)
+cargo ghdist --tag abcdef0
 cargo ghdist --tag vabcdef0
+
+# Release from branch name
+cargo ghdist --tag main
 
 # Build for specific targets
 cargo ghdist \
@@ -111,7 +125,7 @@ cargo ghdist \
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-t, --tag <TAG>` | Release tag (e.g., `v1.2.3` or `vabcdef0`) | Tag on HEAD |
+| `-t, --tag <TAG>` | Release tag (e.g., `v1.2.3`, `abcdef0`, `main`) | Tag on HEAD |
 | `-T, --targets <LIST>` | Build targets (comma-separated) | `x86_64-unknown-linux-gnu,`<br>`aarch64-unknown-linux-gnu` |
 | `-f, --format <FMT>` | Archive format (`tgz` or `zip`) | `tgz` |
 | `--draft` | Create as draft release | Off |
@@ -161,7 +175,7 @@ cargo ghdist
 
 ## Features
 
-- **Flexible Tag Support**: Works with both SemVer tags (`v1.2.3`) and commit hash tags (`vabcdef0`)
+- **Flexible Tag Support**: Works with any tag format - SemVer (`v1.2.3`), plain hashes (`abcdef0`), branch names (`main`), etc.
 - **Multi-Platform**: Build and install for multiple target platforms
 - **Archive Formats**: Supports `.tar.gz`, `.zip`, `.tar.xz`, `.tar.bz2`
 - **Configuration Files**: Persistent settings via TOML configuration
