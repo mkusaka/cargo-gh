@@ -5,7 +5,7 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 authors = ["Your Name <your.email@example.com>"]
-edition = "2024"
+edition = "2021"
 license = "MIT"
 repository = "https://github.com/mkusaka/cargo-gh"
 
