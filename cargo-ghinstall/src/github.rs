@@ -1,6 +1,6 @@
 use crate::error::{GhInstallError, Result as GhResult};
 use anyhow::Result;
-use octocrab::{Octocrab, models::repos::Release};
+use octocrab::{models::repos::Release, Octocrab};
 use reqwest::Client;
 
 pub struct GitHubClient {

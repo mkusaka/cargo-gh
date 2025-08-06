@@ -1,6 +1,6 @@
 use crate::error::{GhDistError, Result as GhResult};
 use anyhow::Result;
-use octocrab::{Octocrab, models::repos::Release};
+use octocrab::{models::repos::Release, Octocrab};
 use reqwest::Client;
 use std::path::Path;
 
