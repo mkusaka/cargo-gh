@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+cargo-manifest.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 directories.workspace = true
 flate2.workspace = true

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use cargo_manifest::Manifest;
 use git2::Repository;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,6 +10,28 @@ use crate::config::Config;
 use crate::error::{GhDistError, Result as GhResult};
 use crate::github::{GitHubClient, get_content_type};
 use crate::packager;
+
+/// Find workspace manifest by looking up parent directories
+fn find_workspace_manifest() -> Result<Manifest> {
+    let mut current_dir = std::env::current_dir()?;
+    
+    loop {
+        let manifest_path = current_dir.join("Cargo.toml");
+        if manifest_path.exists() {
+            if let Ok(manifest) = Manifest::from_path(&manifest_path) {
+                if manifest.workspace.is_some() {
+                    return Ok(manifest);
+                }
+            }
+        }
+        
+        if !current_dir.pop() {
+            break;
+        }
+    }
+    
+    anyhow::bail!("No workspace manifest found")
+}
 
 pub struct DistBuilder {
     args: Args,
@@ -141,28 +164,40 @@ impl DistBuilder {
 
     /// Get package version from Cargo.toml
     fn get_package_version(&self) -> Result<String> {
-        let cargo_toml = fs::read_to_string("Cargo.toml")
-            .context("Failed to read Cargo.toml")?;
-        let manifest: toml::Value = toml::from_str(&cargo_toml)
+        let manifest = Manifest::from_path("Cargo.toml")
             .context("Failed to parse Cargo.toml")?;
         
-        // Try to get version from [package] section first
-        if let Some(version) = manifest
-            .get("package")
-            .and_then(|p| p.get("version"))
-            .and_then(|v| v.as_str())
-        {
-            return Ok(version.to_string());
-        }
-        
-        // If no package section, try workspace.package section (for workspace projects)
-        if let Some(version) = manifest
-            .get("workspace")
-            .and_then(|w| w.get("package"))
-            .and_then(|p| p.get("version"))
-            .and_then(|v| v.as_str())
-        {
-            return Ok(version.to_string());
+        // Get version from package
+        if let Some(package) = manifest.package {
+            match package.version {
+                Some(cargo_manifest::MaybeInherited::Local(version)) => {
+                    return Ok(version);
+                }
+                Some(cargo_manifest::MaybeInherited::Inherited { .. }) => {
+                    // Version is inherited from workspace, need to read workspace manifest
+                    if let Ok(workspace_manifest) = find_workspace_manifest() {
+                        if let Some(ws_package) = workspace_manifest.workspace
+                            .and_then(|ws| ws.package) 
+                        {
+                            if let Some(version) = ws_package.version {
+                                return Ok(version);
+                            }
+                        }
+                    }
+                }
+                None => {
+                    // No version in package, try workspace
+                    if let Ok(workspace_manifest) = find_workspace_manifest() {
+                        if let Some(ws_package) = workspace_manifest.workspace
+                            .and_then(|ws| ws.package) 
+                        {
+                            if let Some(version) = ws_package.version {
+                                return Ok(version);
+                            }
+                        }
+                    }
+                }
+            }
         }
         
         anyhow::bail!("No version field found in Cargo.toml")

@@ -233,6 +233,7 @@ name = "cargo-ghdist"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cargo-manifest",
  "clap",
  "directories",
  "flate2",
@@ -279,6 +280,17 @@ dependencies = [
  "walkdir",
  "xz2",
  "zip",
+]
+
+[[package]]
+name = "cargo-manifest"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03fa8484a7f2eef80e6dd2e2be90b322b9c29aeb1bbc206013d6eb2104db7241"
+dependencies = [
+ "serde",
+ "thiserror 1.0.69",
+ "toml",
 ]
 
 [[package]]
@@ -2348,6 +2360,7 @@ version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc1beb996b9d83529a9e75c17a1686767d148d70663143c7854d8b4a09ced362"
 dependencies = [
+ "indexmap",
  "serde",
  "serde_spanned",
  "toml_datetime",
