@@ -111,7 +111,24 @@ impl GitHubClient {
             anyhow::bail!("Failed to download asset: {}", response.status());
         }
 
-        let mut temp_file = tempfile::NamedTempFile::new()?;
+        // Create temp file with appropriate extension
+        let extension = if asset.name.ends_with(".tar.gz") {
+            ".tar.gz"
+        } else if asset.name.ends_with(".tgz") {
+            ".tgz"
+        } else if asset.name.ends_with(".zip") {
+            ".zip"
+        } else if asset.name.ends_with(".tar.xz") {
+            ".tar.xz"
+        } else if asset.name.ends_with(".tar.bz2") {
+            ".tar.bz2"
+        } else {
+            ""
+        };
+        
+        let mut temp_file = tempfile::Builder::new()
+            .suffix(extension)
+            .tempfile()?;
         let mut stream = response.bytes_stream();
 
         use futures_util::StreamExt;
