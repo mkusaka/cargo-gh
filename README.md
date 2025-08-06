@@ -17,6 +17,23 @@ Both commands support any tag format including:
 
 This flexibility makes them suitable for various release workflows.
 
+## Quick Start
+
+```bash
+# Install the tools
+cargo install --git https://github.com/mkusaka/cargo-gh
+
+# Install a binary from ANY tag/commit/branch
+cargo ghinstall owner/repo@abcdef0          # From commit hash
+cargo ghinstall owner/repo@main             # From branch
+cargo ghinstall owner/repo@nightly-2024     # From custom tag
+
+# Release binaries with ANY tag format
+cargo ghdist --tag $(git rev-parse --short HEAD)  # Current commit
+cargo ghdist --tag main                           # Branch name
+cargo ghdist --tag nightly-$(date +%Y%m%d)       # Date-based tag
+```
+
 ## Installation
 
 ```bash
@@ -38,15 +55,23 @@ Install prebuilt binaries from GitHub Releases.
 # Install latest release
 cargo ghinstall owner/repo
 
-# Install specific version (SemVer)
+# Install specific version (SemVer - with or without 'v' prefix)
 cargo ghinstall owner/repo@v1.2.3
+cargo ghinstall owner/repo@1.2.3
 
-# Install from commit hash (with or without 'v' prefix)
+# Install from commit hash (any format)
 cargo ghinstall owner/repo@abcdef0
 cargo ghinstall owner/repo@vabcdef0
+cargo ghinstall owner/repo@abc123
 
 # Install from branch name
 cargo ghinstall owner/repo@main
+cargo ghinstall owner/repo@develop
+cargo ghinstall owner/repo@feature/new-ui
+
+# Install from any git reference
+cargo ghinstall owner/repo@nightly-2024-01-15
+cargo ghinstall owner/repo@release-candidate
 
 # Install with options
 cargo ghinstall owner/repo \
@@ -104,15 +129,24 @@ Build and distribute binaries to GitHub Releases.
 # Build and release for default targets
 cargo ghdist
 
-# Release with specific tag
+# Release with specific version tag (with or without 'v' prefix)
 cargo ghdist --tag v1.2.3
+cargo ghdist --tag 1.2.3
 
-# Release from commit hash (with or without 'v' prefix)
+# Release from commit hash (any format)
 cargo ghdist --tag abcdef0
 cargo ghdist --tag vabcdef0
+cargo ghdist --tag abc123
 
 # Release from branch name
 cargo ghdist --tag main
+cargo ghdist --tag develop
+cargo ghdist --tag feature/new-ui
+
+# Release with any custom tag
+cargo ghdist --tag nightly-2024-01-15
+cargo ghdist --tag release-candidate
+cargo ghdist --tag beta-5
 
 # Build for specific targets
 cargo ghdist \
@@ -175,7 +209,12 @@ cargo ghdist
 
 ## Features
 
-- **Flexible Tag Support**: Works with any tag format - SemVer (`v1.2.3`), plain hashes (`abcdef0`), branch names (`main`), etc.
+- **Universal Tag Support**: Works with ANY git reference format:
+  - Semantic versions: `v1.2.3`, `1.0.0`, `2.0.0-beta.1`
+  - Commit hashes: `abcdef0`, `vabcdef0`, `abc123` (any length)
+  - Branch names: `main`, `develop`, `feature/new-ui`
+  - Custom tags: `nightly-2024-01-15`, `release-candidate`, `beta-5`
+  - Any other git reference your workflow requires
 - **Multi-Platform**: Build and install for multiple target platforms
 - **Archive Formats**: Supports `.tar.gz`, `.zip`, `.tar.xz`, `.tar.bz2`
 - **Configuration Files**: Persistent settings via TOML configuration
@@ -193,7 +232,10 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'          # Semantic version tags
+      - '[0-9]*'      # Plain version numbers
+      - 'release-*'   # Release branches
+      - 'nightly-*'   # Nightly builds
 
 jobs:
   release:
@@ -215,6 +257,20 @@ jobs:
             --targets x86_64-unknown-linux-gnu,x86_64-apple-darwin,x86_64-pc-windows-msvc \
             --format tgz
 ```
+
+## Comparison with Similar Tools
+
+### vs cargo-binstall / cargo-dist
+- **cargo-gh** supports ANY git reference format (commit hashes, branch names, custom tags)
+- **cargo-binstall/cargo-dist** primarily focus on semantic version tags
+- **cargo-gh** allows more flexible release workflows without being restricted to SemVer
+
+### Key Advantages
+- ✅ Release from any commit without creating a version tag
+- ✅ Use branch names for continuous deployment (e.g., `main`, `develop`)
+- ✅ Support custom tag formats for your workflow (e.g., `nightly-YYYY-MM-DD`)
+- ✅ Compatible with existing GitHub Release workflows
+- ✅ Fallback to source installation when binaries are unavailable
 
 ## Development
 
