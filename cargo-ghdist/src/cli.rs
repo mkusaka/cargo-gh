@@ -21,7 +21,7 @@ pub struct GhdistCli {
     pub command: Option<Command>,
 
     /// Release tag (e.g., v1.2.3, abcdef0, main, or any git ref)
-    /// If not specified, uses the tag on HEAD
+    /// If not specified, uses the tag on HEAD or commit SHA as fallback
     #[clap(short, long, global = true)]
     pub tag: Option<String>,
 
