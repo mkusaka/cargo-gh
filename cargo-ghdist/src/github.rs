@@ -40,6 +40,12 @@ impl GitHubClient {
         target_commitish: Option<&str>,
     ) -> GhResult<Release> {
         // Check if release already exists
+        tracing::debug!(
+            "Checking for existing release: owner={}, repo={}, tag={}",
+            owner,
+            repo,
+            tag
+        );
         match self
             .octocrab
             .repos(owner, repo)
@@ -51,9 +57,14 @@ impl GitHubClient {
                 tracing::info!("Release {} already exists, will update it", tag);
                 Ok(release)
             }
-            Err(_) => {
+            Err(e) => {
                 // Create new release
-                tracing::info!("Creating new release: {}", tag);
+                tracing::info!("Release {} doesn't exist, creating new one: {:?}", tag, e);
+                tracing::debug!(
+                    "Creating release with: draft={}, target_commitish={:?}",
+                    draft,
+                    target_commitish
+                );
 
                 // Build and send the release in one expression to avoid borrowing issues
                 let result = if let Some(target) = target_commitish {
@@ -78,8 +89,18 @@ impl GitHubClient {
                 };
 
                 match result {
-                    Ok(release) => Ok(release),
-                    Err(e) => Err(GhDistError::ReleaseCreation(e.to_string())),
+                    Ok(release) => {
+                        tracing::info!("Successfully created release: {}", tag);
+                        Ok(release)
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to create release {}: {:?}", tag, e);
+                        Err(GhDistError::ReleaseCreation(format!(
+                            "Failed to create release {}: {}",
+                            tag,
+                            e
+                        )))
+                    }
                 }
             }
         }

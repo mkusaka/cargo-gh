@@ -116,22 +116,29 @@ impl DistBuilder {
 
         // Get current commit SHA if using --hash option
         let target_commitish = if self.args.hash {
-            Repository::open(".")
-                .ok()
-                .and_then(|repo| {
-                    repo.head()
-                        .ok()
-                        .and_then(|head| head.target())
-                        .map(|oid| oid.to_string())
-                })
+            let sha = Repository::open(".").ok().and_then(|repo| {
+                repo.head()
+                    .ok()
+                    .and_then(|head| head.target())
+                    .map(|oid| oid.to_string())
+            });
+            tracing::info!("Using commit SHA for release: {:?}", sha);
+            sha
         } else {
+            tracing::info!("Not using commit SHA (--hash not specified)");
             None
         };
 
         // Create or update GitHub release
         let release = self
             .github_client
-            .create_release(&owner, &repo, &tag, self.args.draft, target_commitish.as_deref())
+            .create_release(
+                &owner,
+                &repo,
+                &tag,
+                self.args.draft,
+                target_commitish.as_deref(),
+            )
             .await?;
 
         // Upload all assets
