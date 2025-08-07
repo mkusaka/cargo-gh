@@ -130,8 +130,41 @@ impl DistBuilder {
         };
 
         // Generate release notes
-        let release_notes = self.generate_release_notes(&tag, &owner, &repo, self.args.hash)?;
-        tracing::debug!("Generated release notes: {} chars", release_notes.len());
+        let mut release_notes = self.generate_release_notes(&tag, &owner, &repo, self.args.hash)?;
+        
+        // For tagged releases, append GitHub's auto-generated release notes
+        if !self.args.hash {
+            tracing::info!("Fetching GitHub's auto-generated release notes for tag {}", tag);
+            
+            // Get the previous tag for comparison
+            let previous_tag = self.find_previous_tag().ok();
+            
+            // Fetch auto-generated release notes from GitHub
+            match self.github_client
+                .generate_release_notes(
+                    &owner,
+                    &repo,
+                    &tag,
+                    target_commitish.as_deref(),
+                    previous_tag.as_deref(),
+                )
+                .await
+            {
+                Ok(auto_notes) => {
+                    tracing::debug!("Got auto-generated notes: {} chars", auto_notes.len());
+                    // Append the auto-generated notes to our custom notes
+                    release_notes.push_str("\n\n---\n");
+                    release_notes.push_str("\n## 📋 Auto-generated Release Notes\n\n");
+                    release_notes.push_str(&auto_notes);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to get auto-generated release notes: {}", e);
+                    // Continue without auto-generated notes
+                }
+            }
+        }
+        
+        tracing::debug!("Final release notes: {} chars", release_notes.len());
 
         // Create or update GitHub release
         let release = self
@@ -316,9 +349,6 @@ cargo ghinstall {}/{}@{}
 ### 🔗 Links
 - [Commit](https://github.com/{}/{}/commit/{})
 - [Compare](https://github.com/{}/{}/compare/{}...{})
-
----
-_Auto-generated release notes below:_
 "#,
                 tag,
                 sha,

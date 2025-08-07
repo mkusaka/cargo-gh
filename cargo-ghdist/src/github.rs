@@ -204,6 +204,57 @@ impl GitHubClient {
         Ok(())
     }
 
+    /// Generate release notes using GitHub's API
+    pub async fn generate_release_notes(
+        &self,
+        owner: &str,
+        repo: &str,
+        tag: &str,
+        target_commitish: Option<&str>,
+        previous_tag: Option<&str>,
+    ) -> Result<String> {
+        let release_notes = match (target_commitish, previous_tag) {
+            (Some(target), Some(prev_tag)) => {
+                self.octocrab
+                    .repos(owner, repo)
+                    .releases()
+                    .generate_release_notes(tag)
+                    .target_commitish(target)
+                    .previous_tag_name(prev_tag)
+                    .send()
+                    .await?
+            }
+            (Some(target), None) => {
+                self.octocrab
+                    .repos(owner, repo)
+                    .releases()
+                    .generate_release_notes(tag)
+                    .target_commitish(target)
+                    .send()
+                    .await?
+            }
+            (None, Some(prev_tag)) => {
+                self.octocrab
+                    .repos(owner, repo)
+                    .releases()
+                    .generate_release_notes(tag)
+                    .previous_tag_name(prev_tag)
+                    .send()
+                    .await?
+            }
+            (None, None) => {
+                self.octocrab
+                    .repos(owner, repo)
+                    .releases()
+                    .generate_release_notes(tag)
+                    .send()
+                    .await?
+            }
+        };
+        
+        Ok(release_notes.body)
+    }
+
     /// Get the GitHub token from the client
     fn get_token(&self) -> Result<String> {
         std::env::var("GITHUB_TOKEN").map_err(|_| {
