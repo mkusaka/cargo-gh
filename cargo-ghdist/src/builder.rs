@@ -114,10 +114,20 @@ impl DistBuilder {
             all_archives.push(checksum_file);
         }
 
+        // Get current commit SHA if using --hash option
+        let target_commitish = if self.args.hash {
+            let repo = Repository::open(".").ok();
+            repo.and_then(|r| r.head().ok())
+                .and_then(|head| head.target())
+                .map(|oid| oid.to_string())
+        } else {
+            None
+        };
+
         // Create or update GitHub release
         let release = self
             .github_client
-            .create_release(&owner, &repo, &tag, self.args.draft)
+            .create_release(&owner, &repo, &tag, self.args.draft, target_commitish.as_deref())
             .await?;
 
         // Upload all assets

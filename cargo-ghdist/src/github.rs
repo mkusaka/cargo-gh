@@ -37,6 +37,7 @@ impl GitHubClient {
         repo: &str,
         tag: &str,
         draft: bool,
+        target_commitish: Option<&str>,
     ) -> GhResult<Release> {
         // Check if release already exists
         match self
@@ -54,16 +55,20 @@ impl GitHubClient {
                 // Create new release
                 tracing::info!("Creating new release: {}", tag);
 
-                match self
+                let mut release_builder = self
                     .octocrab
                     .repos(owner, repo)
                     .releases()
                     .create(tag)
                     .draft(draft)
-                    .name(tag)
-                    .send()
-                    .await
-                {
+                    .name(tag);
+                
+                // Set target commitish if provided
+                if let Some(target) = target_commitish {
+                    release_builder = release_builder.target_commitish(target);
+                }
+
+                match release_builder.send().await {
                     Ok(release) => Ok(release),
                     Err(e) => Err(GhDistError::ReleaseCreation(e.to_string())),
                 }
