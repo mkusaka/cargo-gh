@@ -38,6 +38,7 @@ impl GitHubClient {
         tag: &str,
         draft: bool,
         target_commitish: Option<&str>,
+        body: Option<&str>,
     ) -> GhResult<Release> {
         // Check if release already exists
         tracing::debug!(
@@ -67,25 +68,51 @@ impl GitHubClient {
                 );
 
                 // Build and send the release in one expression to avoid borrowing issues
-                let result = if let Some(target) = target_commitish {
-                    self.octocrab
-                        .repos(owner, repo)
-                        .releases()
-                        .create(tag)
-                        .draft(draft)
-                        .name(tag)
-                        .target_commitish(target)
-                        .send()
-                        .await
-                } else {
-                    self.octocrab
-                        .repos(owner, repo)
-                        .releases()
-                        .create(tag)
-                        .draft(draft)
-                        .name(tag)
-                        .send()
-                        .await
+                let result = match (target_commitish, body) {
+                    (Some(target), Some(body_text)) => {
+                        self.octocrab
+                            .repos(owner, repo)
+                            .releases()
+                            .create(tag)
+                            .draft(draft)
+                            .name(tag)
+                            .target_commitish(target)
+                            .body(body_text)
+                            .send()
+                            .await
+                    }
+                    (Some(target), None) => {
+                        self.octocrab
+                            .repos(owner, repo)
+                            .releases()
+                            .create(tag)
+                            .draft(draft)
+                            .name(tag)
+                            .target_commitish(target)
+                            .send()
+                            .await
+                    }
+                    (None, Some(body_text)) => {
+                        self.octocrab
+                            .repos(owner, repo)
+                            .releases()
+                            .create(tag)
+                            .draft(draft)
+                            .name(tag)
+                            .body(body_text)
+                            .send()
+                            .await
+                    }
+                    (None, None) => {
+                        self.octocrab
+                            .repos(owner, repo)
+                            .releases()
+                            .create(tag)
+                            .draft(draft)
+                            .name(tag)
+                            .send()
+                            .await
+                    }
                 };
 
                 match result {
@@ -96,9 +123,7 @@ impl GitHubClient {
                     Err(e) => {
                         tracing::error!("Failed to create release {}: {:?}", tag, e);
                         Err(GhDistError::ReleaseCreation(format!(
-                            "Failed to create release {}: {}",
-                            tag,
-                            e
+                            "Failed to create release {tag}: {e}"
                         )))
                     }
                 }
