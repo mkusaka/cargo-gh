@@ -243,7 +243,7 @@ jobs:
             TAG=$(gh api \
               -H "Accept: application/vnd.github+json" \
               /repos/${{ github.repository }}/releases \
-              --jq 'map(select(.tag_name | test("^[0-9]+\\.[0-9]+\\.[0-9]+-[a-f0-9]{7}$"))) | .[0].tag_name')
+              --jq 'map(select(.tag_name | test("^[0-9]+\\.[0-9]+\\.[0-9]+-[a-f0-9]{8}$"))) | .[0].tag_name')
             
             if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
               echo "❌ Could not find release created by cargo-ghdist --hash"
