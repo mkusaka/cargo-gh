@@ -116,10 +116,14 @@ impl DistBuilder {
 
         // Get current commit SHA if using --hash option
         let target_commitish = if self.args.hash {
-            let repo = Repository::open(".").ok();
-            repo.and_then(|r| r.head().ok())
-                .and_then(|head| head.target())
-                .map(|oid| oid.to_string())
+            Repository::open(".")
+                .ok()
+                .and_then(|repo| {
+                    repo.head()
+                        .ok()
+                        .and_then(|head| head.target())
+                        .map(|oid| oid.to_string())
+                })
         } else {
             None
         };

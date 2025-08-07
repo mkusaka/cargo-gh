@@ -55,7 +55,7 @@ impl GitHubClient {
                 // Create new release
                 tracing::info!("Creating new release: {}", tag);
 
-                let mut release_builder = self
+                let release_builder = self
                     .octocrab
                     .repos(owner, repo)
                     .releases()
@@ -64,9 +64,11 @@ impl GitHubClient {
                     .name(tag);
                 
                 // Set target commitish if provided
-                if let Some(target) = target_commitish {
-                    release_builder = release_builder.target_commitish(target);
-                }
+                let release_builder = if let Some(target) = target_commitish {
+                    release_builder.target_commitish(target)
+                } else {
+                    release_builder
+                };
 
                 match release_builder.send().await {
                     Ok(release) => Ok(release),
