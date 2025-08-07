@@ -9,7 +9,7 @@ use anyhow::Result;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-use crate::cli::Args;
+use crate::cli::{Args, CargoCli};
 use crate::installer::Installer;
 
 #[tokio::main]
@@ -19,8 +19,14 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    // Parse command line arguments
-    let args = Args::parse();
+    // Parse command line arguments - handle both cargo subcommand and direct invocation
+    let args = match CargoCli::try_parse() {
+        Ok(CargoCli::Ghinstall(args)) => args,
+        Err(_) => {
+            // Fall back to parsing as direct invocation (for cargo-ghinstall binary)
+            Args::parse()
+        }
+    };
 
     if args.verbose {
         tracing::info!("Running cargo-ghinstall with verbose output");

@@ -21,8 +21,16 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    // Parse command line arguments
-    let CargoCli::Ghdist(cli) = CargoCli::parse();
+    // Parse command line arguments - handle both cargo subcommand and direct invocation
+    let cli = match CargoCli::try_parse() {
+        Ok(CargoCli::Ghdist(cli)) => cli,
+        Err(_) => {
+            // Fall back to parsing as direct invocation (for cargo-ghdist binary)
+            // In this case, parse Cli directly
+            use crate::cli::Cli;
+            Cli::parse()
+        }
+    };
 
     if cli.verbose {
         tracing::info!("Running cargo-ghdist with verbose output");
