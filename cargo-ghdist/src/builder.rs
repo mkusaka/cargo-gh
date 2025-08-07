@@ -131,16 +131,20 @@ impl DistBuilder {
 
         // Generate release notes
         let mut release_notes = self.generate_release_notes(&tag, &owner, &repo, self.args.hash)?;
-        
+
         // For tagged releases, append GitHub's auto-generated release notes
         if !self.args.hash {
-            tracing::info!("Fetching GitHub's auto-generated release notes for tag {}", tag);
-            
+            tracing::info!(
+                "Fetching GitHub's auto-generated release notes for tag {}",
+                tag
+            );
+
             // Get the previous tag for comparison
             let previous_tag = self.find_previous_tag().ok();
-            
+
             // Fetch auto-generated release notes from GitHub
-            match self.github_client
+            match self
+                .github_client
                 .generate_release_notes(
                     &owner,
                     &repo,
@@ -163,7 +167,7 @@ impl DistBuilder {
                 }
             }
         }
-        
+
         tracing::debug!("Final release notes: {} chars", release_notes.len());
 
         // Create or update GitHub release

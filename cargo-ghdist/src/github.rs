@@ -251,7 +251,7 @@ impl GitHubClient {
                     .await?
             }
         };
-        
+
         Ok(release_notes.body)
     }
 
