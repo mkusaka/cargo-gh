@@ -317,8 +317,12 @@ For stable releases, please use tagged versions.
 
 ### 📦 Installation
 ```bash
-# Install with cargo-ghinstall
+# Install all binaries
 cargo ghinstall {}/{}@{}
+
+# Install specific binary
+cargo ghinstall {}/{}@{} --bin cargo-ghinstall
+cargo ghinstall {}/{}@{} --bin cargo-ghdist
 ```
 
 ### 🔗 Links
@@ -328,6 +332,12 @@ cargo ghinstall {}/{}@{}
                 author_name,
                 branch,
                 message.trim(),
+                owner,
+                repo_name,
+                tag,
+                owner,
+                repo_name,
+                tag,
                 owner,
                 repo_name,
                 tag,
@@ -344,8 +354,12 @@ cargo ghinstall {}/{}@{}
 
 ### 📦 Installation
 ```bash
-# Install with cargo-ghinstall
+# Install all binaries
 cargo ghinstall {}/{}@{}
+
+# Install specific binary
+cargo ghinstall {}/{}@{} --bin cargo-ghinstall
+cargo ghinstall {}/{}@{} --bin cargo-ghdist
 
 # Or download directly from the release assets
 ```
@@ -357,6 +371,12 @@ cargo ghinstall {}/{}@{}
                 tag,
                 sha,
                 author_name,
+                owner,
+                repo_name,
+                tag,
+                owner,
+                repo_name,
+                tag,
                 owner,
                 repo_name,
                 tag,
