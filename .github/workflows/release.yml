@@ -65,6 +65,7 @@ jobs:
       - name: Build with cargo-ghdist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: cargo_ghdist=debug
         run: |
           IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
           
@@ -72,6 +73,7 @@ jobs:
             # Continuous release - use --hash option
             cargo ghdist \
               --hash \
+              --no-checksum \
               --targets x86_64-unknown-linux-gnu \
               --repository ${{ github.repository }}
           else
@@ -118,6 +120,7 @@ jobs:
       - name: Build with cargo-ghdist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: cargo_ghdist=debug
         run: |
           IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
           
@@ -125,6 +128,7 @@ jobs:
             # Continuous release - use --hash option
             cargo ghdist \
               --hash \
+              --no-checksum \
               --targets aarch64-unknown-linux-gnu \
               --repository ${{ github.repository }}
           else
@@ -160,6 +164,7 @@ jobs:
       - name: Build with cargo-ghdist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: cargo_ghdist=debug
         run: |
           IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
           
@@ -167,6 +172,7 @@ jobs:
             # Continuous release - use --hash option
             cargo ghdist \
               --hash \
+              --no-checksum \
               --targets aarch64-apple-darwin \
               --repository ${{ github.repository }}
           else
@@ -202,6 +208,7 @@ jobs:
       - name: Build with cargo-ghdist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: cargo_ghdist=debug
         run: |
           IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
           
@@ -209,6 +216,7 @@ jobs:
             # Continuous release - use --hash option
             cargo ghdist \
               --hash \
+              --no-checksum \
               --targets x86_64-apple-darwin \
               --repository ${{ github.repository }}
           else
@@ -252,6 +260,7 @@ jobs:
             # Continuous release - use --hash option
             cargo ghdist \
               --hash \
+              --no-checksum \
               --targets x86_64-pc-windows-msvc \
               --repository ${{ github.repository }}
           else
@@ -302,11 +311,60 @@ jobs:
             echo "📦 Using tagged release: ${TAG}"
           fi
 
+  # Generate combined SHA256SUMS file
+  generate-checksums:
+    name: Generate Checksums
+    needs: [prepare-release, get-release-tag]
+    runs-on: ubuntu-latest
+    # Only run for continuous releases since tagged releases handle checksums differently
+    if: needs.prepare-release.outputs.is_continuous == 'true'
+    
+    steps:
+      - name: Download all release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.get-release-tag.outputs.release_tag }}"
+          
+          # Download all tar.gz files from the release
+          gh release download "${TAG}" \
+            --repo "${{ github.repository }}" \
+            --pattern "*.tar.gz" \
+            --dir .
+          
+          # Generate SHA256SUMS for all downloaded files
+          sha256sum *.tar.gz > SHA256SUMS
+          
+          # Display the checksums for verification
+          echo "Generated SHA256SUMS:"
+          cat SHA256SUMS
+          
+          # Delete existing SHA256SUMS file if it exists
+          ASSET_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/tags/${TAG} \
+            --jq '.assets[] | select(.name == "SHA256SUMS") | .id' || echo "")
+          
+          if [ -n "$ASSET_ID" ]; then
+            echo "Deleting existing SHA256SUMS asset (ID: $ASSET_ID)"
+            gh api \
+              --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/releases/assets/${ASSET_ID}
+          fi
+          
+          # Upload the new SHA256SUMS file
+          gh release upload "${TAG}" \
+            --repo "${{ github.repository }}" \
+            SHA256SUMS \
+            --clobber
+
   # Publish release (convert draft to published)
   publish-release:
     name: Publish Release
     needs: [prepare-release, get-release-tag, release-linux-x64, release-linux-arm64, release-macos-arm64, release-macos-x64, release-windows]
     runs-on: ubuntu-latest
+    # This job should wait for generate-checksums if it runs, but we handle that with if: always()
     
     steps:
       - name: Checkout source
