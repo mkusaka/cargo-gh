@@ -26,9 +26,9 @@ async fn main() -> Result<()> {
         Ok(CargoCli::Ghdist(cli)) => cli,
         Err(_) => {
             // Fall back to parsing as direct invocation (for cargo-ghdist binary)
-            // In this case, parse Cli directly
-            use crate::cli::Cli;
-            Cli::parse()
+            // In this case, parse GhdistCli directly
+            use crate::cli::GhdistCli;
+            GhdistCli::parse()
         }
     };
 
