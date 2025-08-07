@@ -55,22 +55,29 @@ impl GitHubClient {
                 // Create new release
                 tracing::info!("Creating new release: {}", tag);
 
-                let release_builder = self
-                    .octocrab
-                    .repos(owner, repo)
-                    .releases()
-                    .create(tag)
-                    .draft(draft)
-                    .name(tag);
-                
-                // Set target commitish if provided
-                let release_builder = if let Some(target) = target_commitish {
-                    release_builder.target_commitish(target)
+                // Build and send the release in one expression to avoid borrowing issues
+                let result = if let Some(target) = target_commitish {
+                    self.octocrab
+                        .repos(owner, repo)
+                        .releases()
+                        .create(tag)
+                        .draft(draft)
+                        .name(tag)
+                        .target_commitish(target)
+                        .send()
+                        .await
                 } else {
-                    release_builder
+                    self.octocrab
+                        .repos(owner, repo)
+                        .releases()
+                        .create(tag)
+                        .draft(draft)
+                        .name(tag)
+                        .send()
+                        .await
                 };
 
-                match release_builder.send().await {
+                match result {
                     Ok(release) => Ok(release),
                     Err(e) => Err(GhDistError::ReleaseCreation(e.to_string())),
                 }
