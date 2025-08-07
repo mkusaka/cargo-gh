@@ -412,6 +412,9 @@ jobs:
             TMPDIR="/tmp/test-install"
           fi
           
+          # Ensure the directory exists
+          mkdir -p "$TMPDIR"
+          
           # Test installing to a temporary directory
           cargo ghinstall "${{ github.repository }}@${TAG}" \
             --install-dir "$TMPDIR" \
