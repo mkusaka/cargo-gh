@@ -1,0 +1,28 @@
+# cargo-ghinstall configuration file
+# This file can be placed at:
+# - .config/ghinstall.toml (project-specific)
+# - ~/.config/ghinstall.toml (user-specific)
+
+# Default installation directory
+install_dir = "~/.cargo/bin"
+
+# Default target (if not auto-detected)
+# target = "x86_64-unknown-linux-gnu"
+
+# Repository-specific configurations
+[repo."rust-lang/rust-analyzer"]
+bin = "rust-analyzer"
+target = "x86_64-apple-darwin"
+
+[repo."BurntSushi/ripgrep"]
+bin = "rg"
+
+[repo."sharkdp/bat"]
+bin = "bat"
+
+[repo."sharkdp/fd"]
+bin = "fd"
+
+# Example for this repository itself
+[repo."mkusaka/cargo-gh"]
+bins = ["cargo-ghinstall", "cargo-ghdist"]

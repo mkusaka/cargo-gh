@@ -1,0 +1,484 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'       # SemVer tags (v1.0.0, v2.1.3, etc.)
+      - '*.*.*'    # Direct version tags (1.0.0, 2.1.3, etc.)
+    branches:
+      - '**'       # All branches for continuous releases
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write  # For release creation and asset upload
+
+jobs:
+  # Determine release type
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.get_tag.outputs.tag }}
+      is_continuous: ${{ steps.get_tag.outputs.is_continuous }}
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      
+      - name: Determine release type
+        id: get_tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Tagged release
+            TAG="${GITHUB_REF#refs/tags/}"
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+            echo "is_continuous=false" >> $GITHUB_OUTPUT
+            echo "📦 Tagged release: ${TAG}"
+          else
+            # Continuous release - will use --hash option
+            echo "tag=" >> $GITHUB_OUTPUT  # No tag needed
+            echo "is_continuous=true" >> $GITHUB_OUTPUT
+            echo "🚀 Continuous release: will use --hash option"
+          fi
+
+  # Linux x86_64 builds
+  release-linux-x64:
+    name: Release (Linux x64)
+    needs: prepare-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.88.0
+          target: x86_64-unknown-linux-gnu
+          rustflags: ""
+
+      - name: Install cargo-ghdist from source
+        run: |
+          cargo install --path ./cargo-ghdist
+          
+      - name: Build with cargo-ghdist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: cargo_ghdist=debug
+        run: |
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
+          
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # Continuous release - use --hash option
+            cargo ghdist \
+              --hash \
+              --no-checksum \
+              --targets x86_64-unknown-linux-gnu \
+              --repository ${{ github.repository }}
+          else
+            # Tagged release
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            cargo ghdist \
+              --tag "${TAG}" \
+              --targets x86_64-unknown-linux-gnu \
+              --repository ${{ github.repository }}
+          fi
+
+  # Linux ARM64 builds
+  release-linux-arm64:
+    name: Release (Linux ARM64)
+    needs: prepare-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.88.0
+          target: aarch64-unknown-linux-gnu
+          rustflags: ""
+
+      - name: Install cross-compilation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu pkg-config
+          
+          # Set up environment for aarch64 cross-compilation
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+
+      - name: Install cargo-ghdist from source
+        run: |
+          cargo install --path ./cargo-ghdist
+          
+      - name: Build with cargo-ghdist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: cargo_ghdist=debug
+        run: |
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
+          
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # Continuous release - use --hash option
+            cargo ghdist \
+              --hash \
+              --no-checksum \
+              --targets aarch64-unknown-linux-gnu \
+              --repository ${{ github.repository }}
+          else
+            # Tagged release
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            cargo ghdist \
+              --tag "${TAG}" \
+              --targets aarch64-unknown-linux-gnu \
+              --repository ${{ github.repository }}
+          fi
+
+  # macOS ARM64 builds
+  release-macos-arm64:
+    name: Release (macOS ARM64)
+    needs: prepare-release
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.88.0
+          target: aarch64-apple-darwin
+          rustflags: ""
+
+      - name: Install cargo-ghdist from source
+        run: |
+          cargo install --path ./cargo-ghdist
+          
+      - name: Build with cargo-ghdist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: cargo_ghdist=debug
+        run: |
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
+          
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # Continuous release - use --hash option
+            cargo ghdist \
+              --hash \
+              --no-checksum \
+              --targets aarch64-apple-darwin \
+              --repository ${{ github.repository }}
+          else
+            # Tagged release
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            cargo ghdist \
+              --tag "${TAG}" \
+              --targets aarch64-apple-darwin \
+              --repository ${{ github.repository }}
+          fi
+
+  # macOS x86_64 builds
+  release-macos-x64:
+    name: Release (macOS x64)
+    needs: prepare-release
+    runs-on: macos-13  # Intel runner
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.88.0
+          target: x86_64-apple-darwin
+          rustflags: ""
+
+      - name: Install cargo-ghdist from source
+        run: |
+          cargo install --path ./cargo-ghdist
+          
+      - name: Build with cargo-ghdist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: cargo_ghdist=debug
+        run: |
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
+          
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # Continuous release - use --hash option
+            cargo ghdist \
+              --hash \
+              --no-checksum \
+              --targets x86_64-apple-darwin \
+              --repository ${{ github.repository }}
+          else
+            # Tagged release
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            cargo ghdist \
+              --tag "${TAG}" \
+              --targets x86_64-apple-darwin \
+              --repository ${{ github.repository }}
+          fi
+
+  # Windows builds
+  release-windows:
+    name: Release (Windows)
+    needs: prepare-release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.88.0
+          target: x86_64-pc-windows-msvc
+          rustflags: ""
+
+      - name: Install cargo-ghdist from source
+        run: |
+          cargo install --path ./cargo-ghdist
+          
+      - name: Build with cargo-ghdist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
+          
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # Continuous release - use --hash option
+            cargo ghdist \
+              --hash \
+              --no-checksum \
+              --targets x86_64-pc-windows-msvc \
+              --repository ${{ github.repository }}
+          else
+            # Tagged release
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            cargo ghdist \
+              --tag "${TAG}" \
+              --targets x86_64-pc-windows-msvc \
+              --repository ${{ github.repository }}
+          fi
+
+  # Get the release tag created by cargo-ghdist
+  get-release-tag:
+    name: Get Release Tag
+    needs: [prepare-release, release-linux-x64, release-linux-arm64, release-macos-arm64, release-macos-x64, release-windows]
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.find_tag.outputs.tag }}
+    
+    steps:
+      - name: Find release tag
+        id: find_tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
+          
+          if [ "$IS_CONTINUOUS" = "true" ]; then
+            # For continuous releases with --hash, find the most recent release
+            # that matches the version-sha pattern
+            # Sort by created_at in descending order to get the most recent one
+            TAG=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/releases \
+              --jq 'map(select(.tag_name | test("^[0-9]+\\.[0-9]+\\.[0-9]+-[a-f0-9]{8}$"))) | sort_by(.created_at) | reverse | .[0].tag_name')
+            
+            if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+              echo "❌ Could not find release created by cargo-ghdist --hash"
+              exit 1
+            fi
+            
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+            echo "📦 Found continuous release tag: ${TAG}"
+          else
+            # For tagged releases, use the original tag
+            TAG="${{ needs.prepare-release.outputs.release_tag }}"
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+            echo "📦 Using tagged release: ${TAG}"
+          fi
+
+  # Generate combined SHA256SUMS file
+  generate-checksums:
+    name: Generate Checksums
+    needs: [prepare-release, get-release-tag]
+    runs-on: ubuntu-latest
+    # Only run for continuous releases since tagged releases handle checksums differently
+    if: needs.prepare-release.outputs.is_continuous == 'true'
+    
+    steps:
+      - name: Download all release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.get-release-tag.outputs.release_tag }}"
+          
+          # Download all tar.gz files from the release
+          gh release download "${TAG}" \
+            --repo "${{ github.repository }}" \
+            --pattern "*.tar.gz" \
+            --dir .
+          
+          # Generate SHA256SUMS for all downloaded files
+          sha256sum *.tar.gz > SHA256SUMS
+          
+          # Display the checksums for verification
+          echo "Generated SHA256SUMS:"
+          cat SHA256SUMS
+          
+          # Delete existing SHA256SUMS file if it exists
+          ASSET_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/tags/${TAG} \
+            --jq '.assets[] | select(.name == "SHA256SUMS") | .id' || echo "")
+          
+          if [ -n "$ASSET_ID" ]; then
+            echo "Deleting existing SHA256SUMS asset (ID: $ASSET_ID)"
+            gh api \
+              --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/releases/assets/${ASSET_ID}
+          fi
+          
+          # Upload the new SHA256SUMS file
+          gh release upload "${TAG}" \
+            --repo "${{ github.repository }}" \
+            SHA256SUMS \
+            --clobber
+
+  # Publish release (convert draft to published)
+  publish-release:
+    name: Publish Release
+    needs: [prepare-release, get-release-tag, release-linux-x64, release-linux-arm64, release-macos-arm64, release-macos-x64, release-windows]
+    runs-on: ubuntu-latest
+    # This job should wait for generate-checksums if it runs, but we handle that with if: always()
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Update release status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          TAG="${{ needs.get-release-tag.outputs.release_tag }}"
+          IS_CONTINUOUS="${{ needs.prepare-release.outputs.is_continuous }}"
+          
+          # Get release ID
+          RELEASE_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/releases/tags/${TAG} \
+            --jq '.id')
+          
+          if [ -n "$RELEASE_ID" ]; then
+            if [ "$IS_CONTINUOUS" = "true" ]; then
+              # Continuous release body
+              {
+                echo "## 🚀 Continuous Release"
+                echo ""
+                echo "**Commit:** \`${{ github.sha }}\`"
+                echo "**Author:** ${{ github.actor }}"
+                echo "**Branch:** ${{ github.ref_name }}"
+                echo ""
+                echo "### 📝 Commit Message"
+                echo "${COMMIT_MESSAGE}"
+                echo ""
+                echo "### ⚠️ Note"
+                echo "This is an automated development build. Use for testing purposes only."
+                echo "For stable releases, please use tagged versions."
+                echo ""
+                echo "### 📦 Installation"
+                echo "\`\`\`bash"
+                echo "# Install with cargo-ghinstall"
+                echo "cargo ghinstall ${{ github.repository }}@${TAG}"
+                echo "\`\`\`"
+                echo ""
+                echo "### 🔗 Links"
+                echo "- [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})"
+              } > /tmp/release-body.md
+              
+              # Update as prerelease
+              gh api \
+                --method PATCH \
+                -H "Accept: application/vnd.github+json" \
+                /repos/${{ github.repository }}/releases/${RELEASE_ID} \
+                -f draft=false \
+                -f prerelease=true \
+                -f name="Development Build (${TAG})" \
+                --field body=@/tmp/release-body.md
+              
+              echo "✅ Published continuous release: ${TAG}"
+            else
+              # Tagged release - just publish without modifying
+              gh api \
+                --method PATCH \
+                -H "Accept: application/vnd.github+json" \
+                /repos/${{ github.repository }}/releases/${RELEASE_ID} \
+                -f draft=false \
+                -f prerelease=false
+              
+              echo "✅ Published tagged release: ${TAG}"
+            fi
+          else
+            echo "⚠️ Could not find release with tag: ${TAG}"
+            exit 1
+          fi
+
+  # Test installation
+  test-installation:
+    name: Test Installation
+    needs: [get-release-tag, publish-release]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      
+      - name: Install cargo-ghinstall from source
+        run: |
+          cargo install --path ./cargo-ghinstall
+      
+      - name: Test installation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ needs.get-release-tag.outputs.release_tag }}"
+          
+          # Create a temporary directory
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            TMPDIR="$RUNNER_TEMP/test-install"
+          else
+            TMPDIR="/tmp/test-install"
+          fi
+          
+          # Ensure the directory exists
+          mkdir -p "$TMPDIR"
+          
+          # Test installing to a temporary directory
+          cargo ghinstall "${{ github.repository }}@${TAG}" \
+            --install-dir "$TMPDIR" \
+            --bins
+          
+          # Test the installed binaries
+          "$TMPDIR/cargo-ghinstall" --version
+          "$TMPDIR/cargo-ghdist" --version
+
