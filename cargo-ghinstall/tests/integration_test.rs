@@ -27,12 +27,18 @@ fn test_install_latest_release() {
 
     // Test installing a known good binary (ripgrep as example)
     let result = std::process::Command::new("cargo")
-        .args(&["run", "--", "BurntSushi/ripgrep", "--install-dir", install_path])
+        .args([
+            "run",
+            "--",
+            "BurntSushi/ripgrep",
+            "--install-dir",
+            install_path,
+        ])
         .output()
         .expect("Failed to execute cargo-ghinstall");
 
     assert!(result.status.success(), "Installation should succeed");
-    
+
     // Verify binary was installed
     let binary_path = PathBuf::from(install_path).join("rg");
     assert!(binary_path.exists() || PathBuf::from(install_path).join("rg.exe").exists());
@@ -47,7 +53,13 @@ fn test_install_specific_version() {
 
     // Test installing a specific version
     let result = std::process::Command::new("cargo")
-        .args(&["run", "--", "BurntSushi/ripgrep@14.0.0", "--install-dir", install_path])
+        .args([
+            "run",
+            "--",
+            "BurntSushi/ripgrep@14.0.0",
+            "--install-dir",
+            install_path,
+        ])
         .output()
         .expect("Failed to execute cargo-ghinstall");
 
@@ -112,7 +124,13 @@ fn test_fallback_to_cargo_install() {
     // Test fallback when no binary release is available
     // This would test a crate that only publishes to crates.io
     let result = std::process::Command::new("cargo")
-        .args(&["run", "--", "some/source-only-crate", "--install-dir", install_path])
+        .args([
+            "run",
+            "--",
+            "some/source-only-crate",
+            "--install-dir",
+            install_path,
+        ])
         .output()
         .expect("Failed to execute cargo-ghinstall");
 
@@ -124,7 +142,7 @@ fn test_fallback_to_cargo_install() {
 fn test_config_file_loading() {
     let temp_dir = setup_test_dir();
     let config_path = temp_dir.path().join("ghinstall.toml");
-    
+
     // Create a test configuration file
     let config_content = r#"
 install_dir = "/custom/install/path"
@@ -133,9 +151,9 @@ install_dir = "/custom/install/path"
 bin = "test-binary"
 target = "x86_64-unknown-linux-gnu"
 "#;
-    
+
     fs::write(&config_path, config_content).expect("Failed to write config");
-    
+
     // Verify config file is valid TOML
     let parsed: Result<toml::Value, _> = toml::from_str(config_content);
     assert!(parsed.is_ok(), "Config should be valid TOML");
@@ -144,9 +162,9 @@ target = "x86_64-unknown-linux-gnu"
 #[test]
 fn test_multi_binary_selection() {
     // Test that --bin flag correctly selects specific binaries
-    let bins = vec!["bin1", "bin2", "bin3"];
+    let bins = ["bin1", "bin2", "bin3"];
     let selected = vec!["bin1", "bin3"];
-    
+
     // Verify selection logic
     for bin in &selected {
         assert!(bins.contains(bin), "Selected binary should exist");
@@ -157,7 +175,7 @@ fn test_multi_binary_selection() {
 #[ignore] // Requires network access
 fn test_concurrent_installations() {
     use std::thread;
-    
+
     let temp_dir = setup_test_dir();
     let install_path = temp_dir.path().to_str().unwrap();
     setup_test_env(install_path);
@@ -168,13 +186,15 @@ fn test_concurrent_installations() {
             let path = install_path.to_string();
             thread::spawn(move || {
                 let result = std::process::Command::new("cargo")
-                    .args(&[
-                        "run", "--", 
-                        &format!("test/repo{}", i), 
-                        "--install-dir", &path
+                    .args([
+                        "run",
+                        "--",
+                        &format!("test/repo{i}"),
+                        "--install-dir",
+                        &path,
                     ])
                     .output();
-                
+
                 result.is_ok()
             })
         })

@@ -3,13 +3,13 @@
 //! These tests verify the complete workflow of creating GitHub releases with binaries.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 /// Test helper to create a test project structure
 fn setup_test_project() -> TempDir {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
-    
+
     // Create a minimal Cargo.toml
     let cargo_toml = r#"
 [package]
@@ -19,22 +19,19 @@ edition = "2021"
 
 [dependencies]
 "#;
-    
-    fs::write(temp_dir.path().join("Cargo.toml"), cargo_toml)
-        .expect("Failed to write Cargo.toml");
-    
+
+    fs::write(temp_dir.path().join("Cargo.toml"), cargo_toml).expect("Failed to write Cargo.toml");
+
     // Create a simple main.rs
     let main_rs = r#"
 fn main() {
     println!("Hello from test project!");
 }
 "#;
-    
-    fs::create_dir_all(temp_dir.path().join("src"))
-        .expect("Failed to create src directory");
-    fs::write(temp_dir.path().join("src/main.rs"), main_rs)
-        .expect("Failed to write main.rs");
-    
+
+    fs::create_dir_all(temp_dir.path().join("src")).expect("Failed to create src directory");
+    fs::write(temp_dir.path().join("src/main.rs"), main_rs).expect("Failed to write main.rs");
+
     temp_dir
 }
 
@@ -42,33 +39,33 @@ fn main() {
 fn test_archive_creation() {
     let temp_dir = TempDir::new().unwrap();
     let output_dir = temp_dir.path();
-    
+
     // Create test files to archive
     let test_file = output_dir.join("test-binary");
     fs::write(&test_file, b"test content").unwrap();
-    
+
     // Test tar.gz creation
     let archive_name = "test-archive";
-    let binaries = vec![test_file];
-    
+    let binaries = [test_file];
+
     // This would call the actual packager::create_archive function
     // For now, we verify the test structure
     assert!(!binaries.is_empty());
-    assert!(!archive_name.is_empty());
+    assert_eq!(archive_name, "test-archive");
 }
 
 #[test]
 fn test_checksum_generation() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     // Create test files
     let file1 = temp_dir.path().join("file1.tar.gz");
     let file2 = temp_dir.path().join("file2.tar.gz");
     fs::write(&file1, b"content1").unwrap();
     fs::write(&file2, b"content2").unwrap();
-    
-    let files = vec![file1, file2];
-    
+
+    let files = [file1, file2];
+
     // This would call packager::generate_checksums
     // Verify we have files to checksum
     assert_eq!(files.len(), 2);
@@ -78,11 +75,11 @@ fn test_checksum_generation() {
 fn test_version_detection() {
     let temp_dir = setup_test_project();
     let project_path = temp_dir.path();
-    
+
     // Verify Cargo.toml exists and contains version
     let cargo_toml_path = project_path.join("Cargo.toml");
     assert!(cargo_toml_path.exists());
-    
+
     let content = fs::read_to_string(&cargo_toml_path).unwrap();
     assert!(content.contains("version = \"0.1.0\""));
 }
@@ -90,7 +87,7 @@ fn test_version_detection() {
 #[test]
 fn test_workspace_version_detection() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     // Create workspace Cargo.toml
     let workspace_toml = r#"
 [workspace]
@@ -100,24 +97,26 @@ members = ["package1", "package2"]
 version = "1.0.0"
 edition = "2021"
 "#;
-    
+
     fs::write(temp_dir.path().join("Cargo.toml"), workspace_toml).unwrap();
-    
+
     // Create member packages
     for pkg in &["package1", "package2"] {
         let pkg_dir = temp_dir.path().join(pkg);
         fs::create_dir_all(&pkg_dir).unwrap();
-        
-        let member_toml = format!(r#"
+
+        let member_toml = format!(
+            r#"
 [package]
-name = "{}"
+name = "{pkg}"
 version.workspace = true
 edition.workspace = true
-"#, pkg);
-        
+"#
+        );
+
         fs::write(pkg_dir.join("Cargo.toml"), member_toml).unwrap();
     }
-    
+
     // Verify workspace structure
     assert!(temp_dir.path().join("Cargo.toml").exists());
     assert!(temp_dir.path().join("package1/Cargo.toml").exists());
@@ -161,10 +160,10 @@ cargo ghinstall {}/{}@{}
         "repo",
         "abc123def"
     );
-    
+
     assert!(continuous_notes.contains("Continuous Release"));
     assert!(continuous_notes.contains("cargo ghinstall"));
-    
+
     // Test tagged release format
     let tagged_notes = format!(
         r#"## 🎉 Release v1.0.0
@@ -195,7 +194,7 @@ cargo ghinstall {}/{}@{}
         "v0.9.0",
         "v1.0.0"
     );
-    
+
     assert!(tagged_notes.contains("Release v1.0.0"));
     assert!(tagged_notes.contains("Compare"));
 }
@@ -209,12 +208,12 @@ fn test_target_triple_validation() {
         "aarch64-apple-darwin",
         "x86_64-pc-windows-msvc",
     ];
-    
+
     for target in &valid_targets {
         // Verify target format
         let parts: Vec<&str> = target.split('-').collect();
         assert!(parts.len() >= 3, "Target should have at least 3 parts");
-        
+
         // Check architecture
         assert!(
             parts[0] == "x86_64" || parts[0] == "aarch64",
@@ -236,20 +235,17 @@ generate_checksum = true
 owner = "test"
 repo = "project"
 "#;
-    
+
     // Verify TOML is valid
     let parsed: Result<toml::Value, _> = toml::from_str(config_content);
     assert!(parsed.is_ok(), "Config should be valid TOML");
-    
+
     if let Ok(value) = parsed {
         assert_eq!(
             value.get("profile").and_then(|v| v.as_str()),
             Some("release")
         );
-        assert_eq!(
-            value.get("format").and_then(|v| v.as_str()),
-            Some("tgz")
-        );
+        assert_eq!(value.get("format").and_then(|v| v.as_str()), Some("tgz"));
     }
 }
 
@@ -257,71 +253,71 @@ repo = "project"
 #[ignore] // Requires git repository
 fn test_git_tag_detection() {
     use std::process::Command;
-    
+
     let temp_dir = setup_test_project();
     let project_path = temp_dir.path();
-    
+
     // Initialize git repo
     Command::new("git")
-        .args(&["init"])
+        .args(["init"])
         .current_dir(project_path)
         .output()
         .expect("Failed to init git");
-    
+
     // Configure git user
     Command::new("git")
-        .args(&["config", "user.email", "test@example.com"])
+        .args(["config", "user.email", "test@example.com"])
         .current_dir(project_path)
         .output()
         .expect("Failed to config email");
-    
+
     Command::new("git")
-        .args(&["config", "user.name", "Test User"])
+        .args(["config", "user.name", "Test User"])
         .current_dir(project_path)
         .output()
         .expect("Failed to config name");
-    
+
     // Add and commit
     Command::new("git")
-        .args(&["add", "."])
+        .args(["add", "."])
         .current_dir(project_path)
         .output()
         .expect("Failed to add files");
-    
+
     Command::new("git")
-        .args(&["commit", "-m", "Initial commit"])
+        .args(["commit", "-m", "Initial commit"])
         .current_dir(project_path)
         .output()
         .expect("Failed to commit");
-    
+
     // Create tag
     Command::new("git")
-        .args(&["tag", "v1.0.0"])
+        .args(["tag", "v1.0.0"])
         .current_dir(project_path)
         .output()
         .expect("Failed to create tag");
-    
+
     // Verify tag exists
     let output = Command::new("git")
-        .args(&["tag", "-l"])
+        .args(["tag", "-l"])
         .current_dir(project_path)
         .output()
         .expect("Failed to list tags");
-    
+
     let tags = String::from_utf8_lossy(&output.stdout);
     assert!(tags.contains("v1.0.0"));
 }
 
 #[test]
 fn test_binary_filtering() {
-    let all_binaries = vec![
+    let all_binaries = [
         PathBuf::from("cargo-ghinstall"),
         PathBuf::from("cargo-ghdist"),
         PathBuf::from("other-tool"),
     ];
-    
-    let requested_bins = vec!["cargo-ghinstall", "cargo-ghdist"];
-    
+
+    let requested_bins = ["cargo-ghinstall", "cargo-ghdist"];
+
     let filtered: Vec<_> = all_binaries
         .iter()
         .filter(|p| {
@@ -331,6 +327,6 @@ fn test_binary_filtering() {
                 .unwrap_or(false)
         })
         .collect();
-    
+
     assert_eq!(filtered.len(), 2);
 }
