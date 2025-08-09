@@ -1,4 +1,5 @@
 use crate::error::{GhInstallError, Result as GhResult};
+use crate::retry::{with_retry, RetryConfig};
 use anyhow::Result;
 use octocrab::{models::repos::Release, Octocrab};
 use reqwest::Client;
@@ -6,6 +7,7 @@ use reqwest::Client;
 pub struct GitHubClient {
     octocrab: Octocrab,
     http_client: Client,
+    retry_config: RetryConfig,
 }
 
 impl GitHubClient {
@@ -24,7 +26,15 @@ impl GitHubClient {
         Ok(Self {
             octocrab,
             http_client,
+            retry_config: RetryConfig::default(),
         })
+    }
+
+    /// Create a new client with custom retry configuration
+    pub fn with_retry_config(retry_config: RetryConfig) -> Result<Self> {
+        let mut client = Self::new()?;
+        client.retry_config = retry_config;
+        Ok(client)
     }
 
     /// Fetch release by tag or get latest release
@@ -34,56 +44,54 @@ impl GitHubClient {
         repo: &str,
         tag: Option<&str>,
     ) -> GhResult<Release> {
-        if let Some(tag) = tag {
-            // Fetch specific release by tag
-            match self
-                .octocrab
-                .repos(owner, repo)
-                .releases()
-                .get_by_tag(tag)
-                .await
-            {
-                Ok(release) => Ok(release),
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to fetch release '{}' for {}/{}: {}",
-                        tag,
-                        owner,
-                        repo,
-                        e
-                    );
-                    Err(GhInstallError::ReleaseNotFound {
-                        tag: tag.to_string(),
-                        owner: owner.to_string(),
-                        repo: repo.to_string(),
-                    })
-                }
-            }
+        let owner_clone = owner.to_string();
+        let repo_clone = repo.to_string();
+        let tag_clone = tag.map(|t| t.to_string());
+        let octocrab = self.octocrab.clone();
+
+        let operation_name = if tag.is_some() {
+            format!("Fetching release '{}' for {owner}/{repo}", tag.unwrap())
         } else {
-            // Fetch latest release
-            match self
-                .octocrab
-                .repos(owner, repo)
-                .releases()
-                .get_latest()
-                .await
-            {
-                Ok(release) => Ok(release),
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to fetch latest release for {}/{}: {}",
-                        owner,
-                        repo,
-                        e
-                    );
-                    Err(GhInstallError::ReleaseNotFound {
-                        tag: "latest".to_string(),
-                        owner: owner.to_string(),
-                        repo: repo.to_string(),
-                    })
+            format!("Fetching latest release for {owner}/{repo}")
+        };
+
+        with_retry(&operation_name, &self.retry_config, || {
+            let octocrab = octocrab.clone();
+            let owner = owner_clone.clone();
+            let repo = repo_clone.clone();
+            let tag = tag_clone.clone();
+
+            async move {
+                if let Some(tag) = tag {
+                    // Fetch specific release by tag
+                    octocrab
+                        .repos(&owner, &repo)
+                        .releases()
+                        .get_by_tag(&tag)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch release: {}", e))
+                } else {
+                    // Fetch latest release
+                    octocrab
+                        .repos(&owner, &repo)
+                        .releases()
+                        .get_latest()
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch latest release: {}", e))
                 }
             }
-        }
+        })
+        .await
+        .map_err(|e| {
+            tracing::error!("{}: {}", operation_name, e);
+            GhInstallError::ReleaseNotFound {
+                tag: tag
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|| "latest".to_string()),
+                owner: owner.to_string(),
+                repo: repo.to_string(),
+            }
+        })
     }
 
     /// Find matching asset for the target platform
@@ -126,24 +134,12 @@ impl GitHubClient {
     pub async fn download_asset(&self, asset: &ReleaseAsset) -> Result<tempfile::NamedTempFile> {
         tracing::info!("Downloading asset: {}", asset.name);
 
-        let response = self.http_client.get(&asset.url).send().await?;
+        let operation_name = format!("Downloading {}", asset.name);
+        let url_clone = asset.url.clone();
+        let name_clone = asset.name.clone();
+        let http_client = self.http_client.clone();
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unable to read error response".to_string());
-            return Err(crate::error::GhInstallError::DownloadFailed {
-                asset: asset.name.clone(),
-                url: asset.url.clone(),
-                status: status.as_u16(),
-                message: error_text,
-            }
-            .into());
-        }
-
-        // Create temp file with appropriate extension
+        // Determine file extension for temp file
         let extension = if asset.name.ends_with(".tar.gz") {
             ".tar.gz"
         } else if asset.name.ends_with(".tgz") {
@@ -158,18 +154,75 @@ impl GitHubClient {
             ""
         };
 
-        let mut temp_file = tempfile::Builder::new().suffix(extension).tempfile()?;
-        let mut stream = response.bytes_stream();
+        with_retry(&operation_name, &self.retry_config, || {
+            let http_client = http_client.clone();
+            let url = url_clone.clone();
+            let _name = name_clone.clone();
+            let ext = extension;
 
-        use futures_util::StreamExt;
-        use std::io::Write;
+            async move {
+                let response = http_client
+                    .get(&url)
+                    .send()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to send download request: {}", e))?;
 
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk?;
-            temp_file.write_all(&chunk)?;
-        }
+                if !response.status().is_success() {
+                    let status = response.status();
+                    let error_text = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unable to read error response".to_string());
 
-        Ok(temp_file)
+                    // Return as non-retryable error for client errors (4xx)
+                    if status.is_client_error() {
+                        return Err(anyhow::anyhow!(
+                            "Download failed with status {}: {}",
+                            status,
+                            error_text
+                        ));
+                    }
+
+                    // Return as retryable error for server errors (5xx)
+                    return Err(anyhow::anyhow!(
+                        "Download failed with status {}: {} (retrying...)",
+                        status,
+                        error_text
+                    ));
+                }
+
+                // Create temp file and stream content
+                let mut temp_file = tempfile::Builder::new()
+                    .suffix(ext)
+                    .tempfile()
+                    .map_err(|e| anyhow::anyhow!("Failed to create temp file: {}", e))?;
+
+                let mut stream = response.bytes_stream();
+
+                use futures_util::StreamExt;
+                use std::io::Write;
+
+                while let Some(chunk) = stream.next().await {
+                    let chunk =
+                        chunk.map_err(|e| anyhow::anyhow!("Failed to read chunk: {}", e))?;
+                    temp_file
+                        .write_all(&chunk)
+                        .map_err(|e| anyhow::anyhow!("Failed to write to temp file: {}", e))?;
+                }
+
+                Ok(temp_file)
+            }
+        })
+        .await
+        .map_err(|e| {
+            crate::error::GhInstallError::DownloadFailed {
+                asset: asset.name.clone(),
+                url: asset.url.clone(),
+                status: 0, // Status unknown after retries
+                message: e.to_string(),
+            }
+            .into()
+        })
     }
 }
 
