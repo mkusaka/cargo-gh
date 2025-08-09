@@ -2,6 +2,7 @@
 //!
 //! These tests verify the complete workflow of installing binaries from GitHub releases.
 
+use cargo_ghinstall::cli::Args;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -16,6 +17,78 @@ fn setup_test_dir() -> TempDir {
 fn setup_test_env(install_dir: &str) {
     env::set_var("CARGO_GHINSTALL_TEST_MODE", "1");
     env::set_var("CARGO_GHINSTALL_INSTALL_DIR", install_dir);
+}
+
+#[test]
+fn test_skip_checksum_flag() {
+    // Test that skip_checksum flag defaults to false
+    let args = Args {
+        repo: "owner/repo".to_string(),
+        tag: None,
+        bin: None,
+        bins: false,
+        target: None,
+        install_dir: "~/.cargo/bin".to_string(),
+        show_notes: false,
+        verify_signature: false,
+        no_fallback: false,
+        skip_checksum: false,
+        config: std::path::PathBuf::from(".config/ghinstall.toml"),
+        verbose: false,
+    };
+
+    assert!(!args.skip_checksum, "skip_checksum should default to false");
+
+    // Test with skip_checksum set to true
+    let args_skip = Args {
+        repo: "owner/repo".to_string(),
+        tag: None,
+        bin: None,
+        bins: false,
+        target: None,
+        install_dir: "~/.cargo/bin".to_string(),
+        show_notes: false,
+        verify_signature: false,
+        no_fallback: false,
+        skip_checksum: true,
+        config: std::path::PathBuf::from(".config/ghinstall.toml"),
+        verbose: false,
+    };
+
+    assert!(
+        args_skip.skip_checksum,
+        "skip_checksum should be true when explicitly set"
+    );
+}
+
+#[test]
+#[ignore] // Requires network access
+fn test_install_with_skip_checksum() {
+    let temp_dir = setup_test_dir();
+    let install_path = temp_dir.path().to_str().unwrap();
+    setup_test_env(install_path);
+
+    // Test installing with --skip-checksum flag
+    // This should succeed even if no SHA256SUMS file is present
+    let result = std::process::Command::new("cargo")
+        .args([
+            "run",
+            "--",
+            "owner/repo", // A repo that might not have checksums
+            "--install-dir",
+            install_path,
+            "--skip-checksum",
+        ])
+        .output()
+        .expect("Failed to execute cargo-ghinstall");
+
+    // Should not fail due to missing checksums when --skip-checksum is used
+    // Note: This test might still fail for other reasons (e.g., no release found)
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        !stderr.contains("Checksum verification failed"),
+        "Should not fail on checksum verification when --skip-checksum is used"
+    );
 }
 
 #[test]

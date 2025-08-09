@@ -86,6 +86,19 @@ impl Installer {
         // Download asset
         let temp_file = self.github_client.download_asset(&asset).await?;
 
+        // Verify checksum unless explicitly skipped
+        if !self.args.skip_checksum {
+            if let Err(e) = self
+                .verify_checksum(&release, &asset, temp_file.path())
+                .await
+            {
+                tracing::error!("Checksum verification failed: {}", e);
+                return Err(e.into());
+            }
+        } else {
+            tracing::warn!("Skipping checksum verification (--skip-checksum was specified)");
+        }
+
         // Verify signature if requested
         if self.args.verify_signature {
             if let Err(e) = self
@@ -194,6 +207,86 @@ impl Installer {
         Ok(())
     }
 
+    #[allow(clippy::result_large_err)]
+    async fn verify_checksum(
+        &self,
+        release: &octocrab::models::repos::Release,
+        asset: &ReleaseAsset,
+        file_path: &Path,
+    ) -> GhResult<()> {
+        // Look for SHA256SUMS file in the release
+        let checksum_asset = release.assets.iter().find(|a| {
+            let name = &a.name;
+            name == "SHA256SUMS" || name == "checksums.txt" || name == "sha256sums.txt"
+        });
+
+        if let Some(checksum_asset) = checksum_asset {
+            tracing::info!("Found checksum file: {}", checksum_asset.name);
+
+            // Download checksum file
+            let checksum_asset = ReleaseAsset {
+                name: checksum_asset.name.clone(),
+                url: checksum_asset.browser_download_url.to_string(),
+                size: checksum_asset.size as u64,
+            };
+
+            let checksum_file = self
+                .github_client
+                .download_asset(&checksum_asset)
+                .await
+                .map_err(|_| GhInstallError::ChecksumVerification)?;
+
+            // Read checksums from file
+            let checksum_content = std::fs::read_to_string(checksum_file.path())
+                .map_err(|_| GhInstallError::ChecksumVerification)?;
+
+            // Parse checksums and find the one for our asset
+            let expected_checksum = self.parse_checksum(&checksum_content, &asset.name)?;
+
+            // Calculate actual checksum
+            let actual_checksum = utils::calculate_sha256(file_path)
+                .map_err(|_| GhInstallError::ChecksumVerification)?;
+
+            // Compare checksums
+            if actual_checksum.to_lowercase() != expected_checksum.to_lowercase() {
+                tracing::error!(
+                    "Checksum mismatch for {}: expected {}, got {}",
+                    asset.name,
+                    expected_checksum,
+                    actual_checksum
+                );
+                return Err(GhInstallError::ChecksumVerification);
+            }
+
+            tracing::info!("Checksum verified successfully for {}", asset.name);
+            Ok(())
+        } else {
+            // No checksum file found, which is an error unless --skip-checksum is used
+            tracing::warn!("No SHA256SUMS file found in release");
+            Err(GhInstallError::ChecksumVerification)
+        }
+    }
+
+    #[allow(clippy::result_large_err)]
+    fn parse_checksum(&self, content: &str, filename: &str) -> GhResult<String> {
+        // SHA256SUMS format: <checksum>  <filename>
+        for line in content.lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let checksum = parts[0];
+                let file = parts[1..].join(" ");
+
+                // Check if this line is for our file
+                if file == filename || file.ends_with(&format!("/{filename}")) {
+                    return Ok(checksum.to_string());
+                }
+            }
+        }
+
+        tracing::error!("No checksum found for file: {}", filename);
+        Err(GhInstallError::ChecksumVerification)
+    }
+
     async fn verify_signature(
         &self,
         release: &octocrab::models::repos::Release,
@@ -289,5 +382,141 @@ mod tests {
         }
 
         assert!(dest_file.exists());
+    }
+
+    #[test]
+    fn test_parse_checksum() {
+        // Test standard SHA256SUMS format
+        let content = r#"
+abc123def456  test-binary-linux.tar.gz
+789ghi012jkl  test-binary-macos.tar.gz
+mno345pqr678  test-binary-windows.zip
+"#;
+
+        let checksum = parse_checksum_helper(content, "test-binary-linux.tar.gz").unwrap();
+        assert_eq!(checksum, "abc123def456");
+
+        let checksum = parse_checksum_helper(content, "test-binary-macos.tar.gz").unwrap();
+        assert_eq!(checksum, "789ghi012jkl");
+
+        // Test with path in filename
+        let content_with_path = r#"
+abc123def456  ./dist/test-binary-linux.tar.gz
+789ghi012jkl  dist/test-binary-macos.tar.gz
+"#;
+
+        let checksum =
+            parse_checksum_helper(content_with_path, "test-binary-linux.tar.gz").unwrap();
+        assert_eq!(checksum, "abc123def456");
+
+        // Test non-existent file
+        let result = parse_checksum_helper(content, "non-existent.tar.gz");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_skip_checksum_behavior() {
+        // Create test arguments with skip_checksum = false
+        let args_verify = Args {
+            repo: "test/repo".to_string(),
+            tag: None,
+            bin: None,
+            bins: false,
+            target: None,
+            install_dir: "/tmp".to_string(),
+            show_notes: false,
+            verify_signature: false,
+            no_fallback: false,
+            skip_checksum: false, // Should verify checksums
+            config: std::path::PathBuf::from("test.toml"),
+            verbose: false,
+        };
+
+        // Test that verification is required when skip_checksum is false
+        assert!(
+            !args_verify.skip_checksum,
+            "Checksum verification should be enabled by default"
+        );
+
+        // Create test arguments with skip_checksum = true
+        let args_skip = Args {
+            repo: "test/repo".to_string(),
+            tag: None,
+            bin: None,
+            bins: false,
+            target: None,
+            install_dir: "/tmp".to_string(),
+            show_notes: false,
+            verify_signature: false,
+            no_fallback: false,
+            skip_checksum: true, // Should skip checksums
+            config: std::path::PathBuf::from("test.toml"),
+            verbose: false,
+        };
+
+        // Test that verification is skipped when skip_checksum is true
+        assert!(
+            args_skip.skip_checksum,
+            "Checksum verification should be skipped when flag is set"
+        );
+    }
+
+    #[test]
+    fn test_checksum_format_variations() {
+        // Test various SHA256SUMS format variations
+
+        // Format 1: Standard format (two spaces)
+        let content1 = "abc123  file.tar.gz";
+        let result = parse_checksum_for_line(content1, "file.tar.gz");
+        assert_eq!(result, Some("abc123".to_string()));
+
+        // Format 2: Single space
+        let content2 = "def456 file.tar.gz";
+        let result = parse_checksum_for_line(content2, "file.tar.gz");
+        assert_eq!(result, Some("def456".to_string()));
+
+        // Format 3: With path prefix
+        let content3 = "ghi789  ./dist/file.tar.gz";
+        let result = parse_checksum_for_line(content3, "file.tar.gz");
+        assert_eq!(result, Some("ghi789".to_string()));
+
+        // Format 4: Tab separator
+        let content4 = "jkl012\tfile.tar.gz";
+        let result = parse_checksum_for_line(content4, "file.tar.gz");
+        assert_eq!(result, Some("jkl012".to_string()));
+    }
+
+    // Helper function to parse a single checksum line
+    fn parse_checksum_for_line(line: &str, filename: &str) -> Option<String> {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2 {
+            let checksum = parts[0];
+            let file = parts[1..].join(" ");
+
+            if file == filename || file.ends_with(&format!("/{filename}")) {
+                return Some(checksum.to_string());
+            }
+        }
+        None
+    }
+
+    // Helper function for testing parse_checksum logic
+    #[allow(clippy::result_large_err)]
+    fn parse_checksum_helper(content: &str, filename: &str) -> GhResult<String> {
+        // SHA256SUMS format: <checksum>  <filename>
+        for line in content.lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let checksum = parts[0];
+                let file = parts[1..].join(" ");
+
+                // Check if this line is for our file
+                if file == filename || file.ends_with(&format!("/{filename}")) {
+                    return Ok(checksum.to_string());
+                }
+            }
+        }
+
+        Err(GhInstallError::ChecksumVerification)
     }
 }

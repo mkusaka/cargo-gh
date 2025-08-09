@@ -12,6 +12,7 @@ fn test_parse_repo_with_tag() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
@@ -34,6 +35,7 @@ fn test_parse_repo_without_tag() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
@@ -56,6 +58,7 @@ fn test_parse_repo_with_hash_tag() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
@@ -78,6 +81,7 @@ fn test_parse_repo_with_plain_hash() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
@@ -100,6 +104,7 @@ fn test_parse_repo_with_branch_name() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
@@ -122,6 +127,7 @@ fn test_parse_repo_invalid_format() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
@@ -141,6 +147,7 @@ fn test_target_detection() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
@@ -163,6 +170,7 @@ fn test_target_override() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
@@ -183,6 +191,7 @@ fn test_install_dir_expansion() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
@@ -204,6 +213,7 @@ fn test_install_dir_absolute_path() {
         show_notes: false,
         verify_signature: false,
         no_fallback: false,
+        skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
