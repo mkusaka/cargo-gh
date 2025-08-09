@@ -274,6 +274,71 @@ impl DistBuilder {
         anyhow::bail!("No version field found in Cargo.toml")
     }
 
+    /// Get binary names and descriptions from the project
+    fn get_binary_info(&self) -> Result<Vec<(String, Option<String>)>> {
+        let mut binaries = Vec::new();
+
+        // Try to read workspace members
+        if let Ok(manifest) = Manifest::from_path("Cargo.toml") {
+            if let Some(workspace) = manifest.workspace {
+                // For workspace projects, check each member
+                for member in &workspace.members {
+                    let member_path = PathBuf::from(&member).join("Cargo.toml");
+                    if let Ok(member_manifest) = Manifest::from_path(&member_path) {
+                        if let Some(package) = member_manifest.package {
+                            // Check if this package produces a binary
+                            // By default, packages with src/main.rs produce a binary with the package name
+                            let has_main =
+                                PathBuf::from(&member).join("src").join("main.rs").exists();
+
+                            // Extract description as String if available
+                            let description = package.description.and_then(|d| match d {
+                                cargo_manifest::MaybeInherited::Local(s) => Some(s),
+                                cargo_manifest::MaybeInherited::Inherited { .. } => None,
+                            });
+
+                            // Check for explicit bin targets
+                            if !member_manifest.bin.is_empty() {
+                                for bin in &member_manifest.bin {
+                                    let bin_name =
+                                        bin.name.clone().unwrap_or_else(|| package.name.clone());
+                                    binaries.push((bin_name, description.clone()));
+                                }
+                            } else if has_main {
+                                // Package has src/main.rs, so it produces a binary with the package name
+                                let name = package.name;
+                                binaries.push((name, description));
+                            }
+                        }
+                    }
+                }
+            } else if let Some(package) = manifest.package {
+                // Single package project
+                let has_main = Path::new("src/main.rs").exists();
+
+                // Extract description as String if available
+                let description = package.description.and_then(|d| match d {
+                    cargo_manifest::MaybeInherited::Local(s) => Some(s),
+                    cargo_manifest::MaybeInherited::Inherited { .. } => None,
+                });
+
+                // Check for explicit bin targets
+                if !manifest.bin.is_empty() {
+                    for bin in &manifest.bin {
+                        let bin_name = bin.name.clone().unwrap_or_else(|| package.name.clone());
+                        binaries.push((bin_name, description.clone()));
+                    }
+                } else if has_main {
+                    // Package has src/main.rs, so it produces a binary with the package name
+                    let name = package.name;
+                    binaries.push((name, description));
+                }
+            }
+        }
+
+        Ok(binaries)
+    }
+
     /// Generate release notes
     fn generate_release_notes(
         &self,
@@ -299,6 +364,31 @@ impl DistBuilder {
         // Get commit message
         let message = commit.message().unwrap_or("No commit message").to_string();
 
+        // Get binary information
+        let binaries = self.get_binary_info().unwrap_or_else(|e| {
+            tracing::warn!(
+                "Failed to detect binaries: {}. Using repository name as fallback.",
+                e
+            );
+            vec![(repo_name.to_string(), None)]
+        });
+
+        // Generate individual binary installation commands
+        let mut binary_install_commands = String::new();
+        if !binaries.is_empty() {
+            binary_install_commands.push_str("\n# Or install specific binaries:\n");
+            for (binary_name, description) in &binaries {
+                if let Some(desc) = description {
+                    binary_install_commands.push_str(&format!("\n# {binary_name} - {desc}\n"));
+                } else {
+                    binary_install_commands.push_str(&format!("\n# {binary_name}\n"));
+                }
+                binary_install_commands.push_str(&format!(
+                    "cargo ghinstall {owner}/{repo_name}@{tag} --bin {binary_name}\n"
+                ));
+            }
+        }
+
         // Build the release notes
         let notes = if is_continuous {
             format!(
@@ -319,11 +409,7 @@ For stable releases, please use tagged versions.
 ```bash
 # Install all binaries
 cargo ghinstall {}/{}@{}
-
-# Install specific binary
-cargo ghinstall {}/{}@{} --bin cargo-ghinstall
-cargo ghinstall {}/{}@{} --bin cargo-ghdist
-```
+{}```
 
 ### 🔗 Links
 - [Commit](https://github.com/{}/{}/commit/{})
@@ -335,12 +421,7 @@ cargo ghinstall {}/{}@{} --bin cargo-ghdist
                 owner,
                 repo_name,
                 tag,
-                owner,
-                repo_name,
-                tag,
-                owner,
-                repo_name,
-                tag,
+                binary_install_commands,
                 owner,
                 repo_name,
                 sha
@@ -356,11 +437,7 @@ cargo ghinstall {}/{}@{} --bin cargo-ghdist
 ```bash
 # Install all binaries
 cargo ghinstall {}/{}@{}
-
-# Install specific binary
-cargo ghinstall {}/{}@{} --bin cargo-ghinstall
-cargo ghinstall {}/{}@{} --bin cargo-ghdist
-
+{}
 # Or download directly from the release assets
 ```
 
@@ -374,12 +451,7 @@ cargo ghinstall {}/{}@{} --bin cargo-ghdist
                 owner,
                 repo_name,
                 tag,
-                owner,
-                repo_name,
-                tag,
-                owner,
-                repo_name,
-                tag,
+                binary_install_commands,
                 owner,
                 repo_name,
                 sha,
@@ -817,6 +889,76 @@ version = "0.5.0"
 
         assert!(tag.starts_with("0.5.0-"));
         assert_eq!(tag.len(), "0.5.0-".len() + 8);
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_get_binary_info() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+
+        // Change to temp directory
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a workspace with two members
+        let workspace_toml = r#"[workspace]
+members = ["cargo-ghinstall", "cargo-ghdist"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+"#;
+        fs::write("Cargo.toml", workspace_toml).unwrap();
+
+        // Create cargo-ghinstall member
+        fs::create_dir_all("cargo-ghinstall/src").unwrap();
+        let ghinstall_toml = r#"[package]
+name = "cargo-ghinstall"
+description = "Install binaries from GitHub releases"
+version.workspace = true
+edition.workspace = true
+"#;
+        fs::write("cargo-ghinstall/Cargo.toml", ghinstall_toml).unwrap();
+        fs::write("cargo-ghinstall/src/main.rs", "fn main() {}").unwrap();
+
+        // Create cargo-ghdist member
+        fs::create_dir_all("cargo-ghdist/src").unwrap();
+        let ghdist_toml = r#"[package]
+name = "cargo-ghdist"
+description = "Create and distribute GitHub releases"
+version.workspace = true
+edition.workspace = true
+"#;
+        fs::write("cargo-ghdist/Cargo.toml", ghdist_toml).unwrap();
+        fs::write("cargo-ghdist/src/main.rs", "fn main() {}").unwrap();
+
+        // Test the binary detection
+        let manifest = Manifest::from_path("Cargo.toml").unwrap();
+        assert!(manifest.workspace.is_some());
+
+        let workspace = manifest.workspace.unwrap();
+        assert_eq!(workspace.members.len(), 2);
+
+        // Check that both binaries would be detected
+        let mut found_binaries = Vec::new();
+        for member in &workspace.members {
+            let member_path = PathBuf::from(&member).join("Cargo.toml");
+            if let Ok(member_manifest) = Manifest::from_path(member_path) {
+                if let Some(package) = member_manifest.package {
+                    let has_main = PathBuf::from(&member).join("src").join("main.rs").exists();
+                    if has_main {
+                        found_binaries.push(package.name);
+                    }
+                }
+            }
+        }
+
+        assert_eq!(found_binaries.len(), 2);
+        assert!(found_binaries.contains(&"cargo-ghinstall".to_string()));
+        assert!(found_binaries.contains(&"cargo-ghdist".to_string()));
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
