@@ -66,6 +66,14 @@ pub struct Args {
     /// Enable verbose output
     #[clap(long)]
     pub verbose: bool,
+
+    /// Maximum number of retry attempts for network operations
+    #[clap(long, default_value = "3", env = "CARGO_GHINSTALL_MAX_RETRIES")]
+    pub max_retries: u32,
+
+    /// Disable retry logic for network operations
+    #[clap(long)]
+    pub no_retry: bool,
 }
 
 impl Args {

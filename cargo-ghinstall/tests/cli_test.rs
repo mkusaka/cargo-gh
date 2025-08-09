@@ -15,6 +15,8 @@ fn test_parse_repo_with_tag() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     let (owner, repo, tag) = args.parse_repo().unwrap();
@@ -38,6 +40,8 @@ fn test_parse_repo_without_tag() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     let (owner, repo, tag) = args.parse_repo().unwrap();
@@ -61,6 +65,8 @@ fn test_parse_repo_with_hash_tag() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     let (owner, repo, tag) = args.parse_repo().unwrap();
@@ -84,6 +90,8 @@ fn test_parse_repo_with_plain_hash() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     let (owner, repo, tag) = args.parse_repo().unwrap();
@@ -107,12 +115,82 @@ fn test_parse_repo_with_branch_name() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     let (owner, repo, tag) = args.parse_repo().unwrap();
     assert_eq!(owner, "owner");
     assert_eq!(repo, "repo");
     assert_eq!(tag, Some("main".to_string()));
+}
+
+#[test]
+fn test_retry_configuration_defaults() {
+    let args = Args {
+        repo: "owner/repo".to_string(),
+        tag: None,
+        bin: None,
+        bins: false,
+        target: None,
+        install_dir: "~/.cargo/bin".to_string(),
+        show_notes: false,
+        verify_signature: false,
+        no_fallback: false,
+        skip_checksum: false,
+        config: std::path::PathBuf::from(".config/ghinstall.toml"),
+        verbose: false,
+        max_retries: 3,
+        no_retry: false,
+    };
+
+    assert_eq!(args.max_retries, 3);
+    assert!(!args.no_retry);
+}
+
+#[test]
+fn test_retry_configuration_custom() {
+    let args = Args {
+        repo: "owner/repo".to_string(),
+        tag: None,
+        bin: None,
+        bins: false,
+        target: None,
+        install_dir: "~/.cargo/bin".to_string(),
+        show_notes: false,
+        verify_signature: false,
+        no_fallback: false,
+        skip_checksum: false,
+        config: std::path::PathBuf::from(".config/ghinstall.toml"),
+        verbose: false,
+        max_retries: 5,
+        no_retry: false,
+    };
+
+    assert_eq!(args.max_retries, 5);
+    assert!(!args.no_retry);
+}
+
+#[test]
+fn test_retry_disabled() {
+    let args = Args {
+        repo: "owner/repo".to_string(),
+        tag: None,
+        bin: None,
+        bins: false,
+        target: None,
+        install_dir: "~/.cargo/bin".to_string(),
+        show_notes: false,
+        verify_signature: false,
+        no_fallback: false,
+        skip_checksum: false,
+        config: std::path::PathBuf::from(".config/ghinstall.toml"),
+        verbose: false,
+        max_retries: 3,
+        no_retry: true,
+    };
+
+    assert!(args.no_retry);
 }
 
 #[test]
@@ -130,6 +208,8 @@ fn test_parse_repo_invalid_format() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     assert!(args.parse_repo().is_err());
@@ -150,6 +230,8 @@ fn test_target_detection() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     let target = args.target();
@@ -173,6 +255,8 @@ fn test_target_override() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     let target = args.target();
@@ -194,6 +278,8 @@ fn test_install_dir_expansion() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     let install_dir = args.install_dir();
@@ -216,6 +302,8 @@ fn test_install_dir_absolute_path() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     let install_dir = args.install_dir();

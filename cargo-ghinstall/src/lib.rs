@@ -53,3 +53,6 @@ pub mod installer;
 
 /// Utility functions for platform detection, archive extraction, and file operations
 pub mod utils;
+
+/// Network retry logic with exponential backoff
+pub mod retry;

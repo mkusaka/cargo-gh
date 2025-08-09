@@ -35,6 +35,8 @@ fn test_skip_checksum_flag() {
         skip_checksum: false,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     assert!(!args.skip_checksum, "skip_checksum should default to false");
@@ -53,6 +55,8 @@ fn test_skip_checksum_flag() {
         skip_checksum: true,
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
+        max_retries: 3,
+        no_retry: false,
     };
 
     assert!(

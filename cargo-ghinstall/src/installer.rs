@@ -7,7 +7,9 @@ use crate::cli::Args;
 use crate::config::Config;
 use crate::error::{GhInstallError, Result as GhResult};
 use crate::github::{GitHubClient, ReleaseAsset};
+use crate::retry::RetryConfig;
 use crate::utils;
+use std::time::Duration;
 
 pub struct Installer {
     args: Args,
@@ -29,7 +31,22 @@ impl Installer {
         // Merge configuration with args
         config.merge_with_args(&mut args, &owner, &repo);
 
-        let github_client = GitHubClient::new()?;
+        // Create retry configuration based on CLI args
+        let retry_config = if args.no_retry {
+            RetryConfig {
+                max_retries: 0,
+                initial_interval: Duration::from_secs(0),
+                max_interval: Duration::from_secs(0),
+                max_elapsed_time: Some(Duration::from_secs(0)),
+            }
+        } else {
+            RetryConfig {
+                max_retries: args.max_retries,
+                ..Default::default()
+            }
+        };
+
+        let github_client = GitHubClient::with_retry_config(retry_config)?;
 
         Ok(Self {
             args,
@@ -502,6 +519,8 @@ abc123def456  ./dist/test-binary-linux.tar.gz
             skip_checksum: false, // Should verify checksums
             config: std::path::PathBuf::from("test.toml"),
             verbose: false,
+            max_retries: 3,
+            no_retry: false,
         };
 
         // Test that verification is required when skip_checksum is false
@@ -524,6 +543,8 @@ abc123def456  ./dist/test-binary-linux.tar.gz
             skip_checksum: true, // Should skip checksums
             config: std::path::PathBuf::from("test.toml"),
             verbose: false,
+            max_retries: 3,
+            no_retry: false,
         };
 
         // Test that verification is skipped when skip_checksum is true

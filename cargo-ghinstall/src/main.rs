@@ -3,6 +3,7 @@ mod config;
 mod error;
 mod github;
 mod installer;
+mod retry;
 mod utils;
 
 use anyhow::Result;
