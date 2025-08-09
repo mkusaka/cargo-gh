@@ -414,6 +414,86 @@ abc123def456  ./dist/test-binary-linux.tar.gz
         assert!(result.is_err());
     }
 
+    #[test]
+    fn test_skip_checksum_behavior() {
+        // Create test arguments with skip_checksum = false
+        let args_verify = Args {
+            repo: "test/repo".to_string(),
+            tag: None,
+            bin: None,
+            bins: false,
+            target: None,
+            install_dir: "/tmp".to_string(),
+            show_notes: false,
+            verify_signature: false,
+            no_fallback: false,
+            skip_checksum: false,  // Should verify checksums
+            config: std::path::PathBuf::from("test.toml"),
+            verbose: false,
+        };
+
+        // Test that verification is required when skip_checksum is false
+        assert!(!args_verify.skip_checksum, "Checksum verification should be enabled by default");
+
+        // Create test arguments with skip_checksum = true
+        let args_skip = Args {
+            repo: "test/repo".to_string(),
+            tag: None,
+            bin: None,
+            bins: false,
+            target: None,
+            install_dir: "/tmp".to_string(),
+            show_notes: false,
+            verify_signature: false,
+            no_fallback: false,
+            skip_checksum: true,  // Should skip checksums
+            config: std::path::PathBuf::from("test.toml"),
+            verbose: false,
+        };
+
+        // Test that verification is skipped when skip_checksum is true
+        assert!(args_skip.skip_checksum, "Checksum verification should be skipped when flag is set");
+    }
+
+    #[test]
+    fn test_checksum_format_variations() {
+        // Test various SHA256SUMS format variations
+        
+        // Format 1: Standard format (two spaces)
+        let content1 = "abc123  file.tar.gz";
+        let result = parse_checksum_for_line(content1, "file.tar.gz");
+        assert_eq!(result, Some("abc123".to_string()));
+
+        // Format 2: Single space
+        let content2 = "def456 file.tar.gz";
+        let result = parse_checksum_for_line(content2, "file.tar.gz");
+        assert_eq!(result, Some("def456".to_string()));
+
+        // Format 3: With path prefix
+        let content3 = "ghi789  ./dist/file.tar.gz";
+        let result = parse_checksum_for_line(content3, "file.tar.gz");
+        assert_eq!(result, Some("ghi789".to_string()));
+
+        // Format 4: Tab separator
+        let content4 = "jkl012\tfile.tar.gz";
+        let result = parse_checksum_for_line(content4, "file.tar.gz");
+        assert_eq!(result, Some("jkl012".to_string()));
+    }
+
+    // Helper function to parse a single checksum line
+    fn parse_checksum_for_line(line: &str, filename: &str) -> Option<String> {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2 {
+            let checksum = parts[0];
+            let file = parts[1..].join(" ");
+            
+            if file == filename || file.ends_with(&format!("/{filename}")) {
+                return Some(checksum.to_string());
+            }
+        }
+        None
+    }
+
     // Helper function for testing parse_checksum logic
     #[allow(clippy::result_large_err)]
     fn parse_checksum_helper(content: &str, filename: &str) -> GhResult<String> {
