@@ -79,8 +79,22 @@ impl Installer {
         // Find matching asset
         let target = self.args.target();
         let asset = GitHubClient::find_asset(&release, &target, self.args.bin.as_deref())
-            .ok_or_else(|| GhInstallError::AssetNotFound {
-                target: target.clone(),
+            .ok_or_else(|| {
+                let available_assets = release
+                    .assets
+                    .iter()
+                    .map(|a| a.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                GhInstallError::AssetNotFound {
+                    target: target.clone(),
+                    release_tag: release.tag_name.clone(),
+                    available: if available_assets.is_empty() {
+                        "No assets available".to_string()
+                    } else {
+                        available_assets
+                    },
+                }
             })?;
 
         // Download asset
@@ -124,9 +138,9 @@ impl Installer {
         let executables = utils::find_executables(extracted_dir)?;
 
         if executables.is_empty() {
-            return Err(GhInstallError::Installation(
-                "No executable files found in the archive".to_string(),
-            )
+            return Err(GhInstallError::NoExecutablesFound {
+                archive: extracted_dir.display().to_string(),
+            }
             .into());
         }
 
@@ -152,9 +166,16 @@ impl Installer {
             if let Some(exe_path) = matching {
                 self.install_binary(exe_path, &install_dir, Some(bin_name))?;
             } else {
-                return Err(GhInstallError::Installation(format!(
-                    "Binary '{bin_name}' not found in archive"
-                ))
+                let available = executables
+                    .iter()
+                    .filter_map(|p| p.file_name())
+                    .filter_map(|n| n.to_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(GhInstallError::BinaryNotFound {
+                    name: bin_name.to_string(),
+                    available,
+                }
                 .into());
             }
         } else {
@@ -172,9 +193,10 @@ impl Installer {
             if let Some(exe_path) = default_exe {
                 self.install_binary(exe_path, &install_dir, Some(default_name))?;
             } else {
-                return Err(
-                    GhInstallError::Installation("No suitable binary found".to_string()).into(),
-                );
+                return Err(GhInstallError::NoExecutablesFound {
+                    archive: extracted_dir.display().to_string(),
+                }
+                .into());
             }
         }
 
@@ -184,7 +206,10 @@ impl Installer {
     fn install_binary(&self, source: &Path, install_dir: &Path, name: Option<&str>) -> Result<()> {
         let binary_name = name
             .or_else(|| source.file_stem()?.to_str())
-            .ok_or_else(|| GhInstallError::Installation("Invalid binary name".to_string()))?;
+            .ok_or_else(|| GhInstallError::Installation {
+                message: "Invalid binary name".to_string(),
+                path: source.display().to_string(),
+            })?;
 
         let dest_path = install_dir.join(binary_name);
 
@@ -234,18 +259,32 @@ impl Installer {
                 .github_client
                 .download_asset(&checksum_asset)
                 .await
-                .map_err(|_| GhInstallError::ChecksumVerification)?;
+                .map_err(|e| {
+                    tracing::error!("Failed to download checksum file {}: {}", checksum_asset.name, e);
+                    GhInstallError::DownloadFailed {
+                        asset: checksum_asset.name.clone(),
+                        url: checksum_asset.url.clone(),
+                        status: 0, // Unknown status
+                        message: e.to_string(),
+                    }
+                })?;
 
             // Read checksums from file
             let checksum_content = std::fs::read_to_string(checksum_file.path())
-                .map_err(|_| GhInstallError::ChecksumVerification)?;
+                .map_err(|e| {
+                    tracing::error!("Failed to read checksum file: {}", e);
+                    GhInstallError::Io(e)
+                })?;
 
             // Parse checksums and find the one for our asset
             let expected_checksum = self.parse_checksum(&checksum_content, &asset.name)?;
 
             // Calculate actual checksum
             let actual_checksum = utils::calculate_sha256(file_path)
-                .map_err(|_| GhInstallError::ChecksumVerification)?;
+                .map_err(|e| {
+                    tracing::error!("Failed to calculate SHA256 for {}: {}", file_path.display(), e);
+                    GhInstallError::Io(std::io::Error::other(e))
+                })?;
 
             // Compare checksums
             if actual_checksum.to_lowercase() != expected_checksum.to_lowercase() {
@@ -255,7 +294,11 @@ impl Installer {
                     expected_checksum,
                     actual_checksum
                 );
-                return Err(GhInstallError::ChecksumVerification);
+                return Err(GhInstallError::ChecksumVerification {
+                    file: asset.name.clone(),
+                    expected: expected_checksum,
+                    actual: actual_checksum,
+                });
             }
 
             tracing::info!("Checksum verified successfully for {}", asset.name);
@@ -263,7 +306,7 @@ impl Installer {
         } else {
             // No checksum file found, which is an error unless --skip-checksum is used
             tracing::warn!("No SHA256SUMS file found in release");
-            Err(GhInstallError::ChecksumVerification)
+            Err(GhInstallError::ChecksumFileNotFound)
         }
     }
 
@@ -284,7 +327,11 @@ impl Installer {
         }
 
         tracing::error!("No checksum found for file: {}", filename);
-        Err(GhInstallError::ChecksumVerification)
+        Err(GhInstallError::ChecksumVerification {
+            file: filename.to_string(),
+            expected: "Unknown".to_string(),
+            actual: "Not found in checksum file".to_string(),
+        })
     }
 
     async fn verify_signature(
@@ -314,13 +361,24 @@ impl Installer {
                 .github_client
                 .download_asset(&sig_asset)
                 .await
-                .map_err(|_| GhInstallError::SignatureVerification)?;
+                .map_err(|e| {
+                    tracing::error!("Failed to download signature file {}: {}", sig_asset.name, e);
+                    GhInstallError::DownloadFailed {
+                        asset: sig_asset.name.clone(),
+                        url: sig_asset.url.clone(),
+                        status: 0,
+                        message: e.to_string(),
+                    }
+                })?;
 
             // TODO: Implement actual GPG verification
             tracing::warn!("Signature verification not yet implemented");
             Ok(())
         } else {
-            Err(GhInstallError::SignatureVerification)
+            Err(GhInstallError::SignatureVerification {
+                file: asset.name.clone(),
+                sig_file: format!("{}.sig or {}.asc", asset.name, asset.name),
+            })
         }
     }
 
@@ -348,7 +406,11 @@ impl Installer {
         let status = cmd.status()?;
 
         if !status.success() {
-            return Err(GhInstallError::Installation("cargo install failed".to_string()).into());
+            return Err(GhInstallError::Installation {
+                message: format!("cargo install failed with exit code: {:?}", status.code()),
+                path: format!("https://github.com/{owner}/{repo}.git"),
+            }
+            .into());
         }
 
         Ok(())
@@ -517,6 +579,10 @@ abc123def456  ./dist/test-binary-linux.tar.gz
             }
         }
 
-        Err(GhInstallError::ChecksumVerification)
+        Err(GhInstallError::ChecksumVerification {
+            file: filename.to_string(),
+            expected: "Unknown".to_string(),
+            actual: "Not found in checksum file".to_string(),
+        })
     }
 }
