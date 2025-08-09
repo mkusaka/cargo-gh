@@ -1,5 +1,6 @@
 [package]
 name = "cargo-ghdist"
+description = "Create and distribute GitHub releases"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
