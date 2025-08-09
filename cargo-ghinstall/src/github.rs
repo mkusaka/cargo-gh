@@ -44,9 +44,20 @@ impl GitHubClient {
                 .await
             {
                 Ok(release) => Ok(release),
-                Err(_) => Err(GhInstallError::ReleaseNotFound {
-                    tag: tag.to_string(),
-                }),
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to fetch release '{}' for {}/{}: {}",
+                        tag,
+                        owner,
+                        repo,
+                        e
+                    );
+                    Err(GhInstallError::ReleaseNotFound {
+                        tag: tag.to_string(),
+                        owner: owner.to_string(),
+                        repo: repo.to_string(),
+                    })
+                }
             }
         } else {
             // Fetch latest release
@@ -58,9 +69,19 @@ impl GitHubClient {
                 .await
             {
                 Ok(release) => Ok(release),
-                Err(_) => Err(GhInstallError::ReleaseNotFound {
-                    tag: "latest".to_string(),
-                }),
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to fetch latest release for {}/{}: {}",
+                        owner,
+                        repo,
+                        e
+                    );
+                    Err(GhInstallError::ReleaseNotFound {
+                        tag: "latest".to_string(),
+                        owner: owner.to_string(),
+                        repo: repo.to_string(),
+                    })
+                }
             }
         }
     }
@@ -108,7 +129,18 @@ impl GitHubClient {
         let response = self.http_client.get(&asset.url).send().await?;
 
         if !response.status().is_success() {
-            anyhow::bail!("Failed to download asset: {}", response.status());
+            let status = response.status();
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error response".to_string());
+            return Err(crate::error::GhInstallError::DownloadFailed {
+                asset: asset.name.clone(),
+                url: asset.url.clone(),
+                status: status.as_u16(),
+                message: error_text,
+            }
+            .into());
         }
 
         // Create temp file with appropriate extension

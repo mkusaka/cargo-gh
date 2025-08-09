@@ -85,7 +85,10 @@ impl Args {
         // Split owner/repo
         let parts: Vec<&str> = repo_part.split('/').collect();
         if parts.len() != 2 {
-            anyhow::bail!("Invalid repository format. Expected: owner/repo[@tag]");
+            return Err(crate::error::GhInstallError::InvalidRepo {
+                input: self.repo.clone(),
+            }
+            .into());
         }
 
         let owner = parts[0].to_string();
