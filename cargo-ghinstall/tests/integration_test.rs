@@ -36,9 +36,9 @@ fn test_skip_checksum_flag() {
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
-    
+
     assert!(!args.skip_checksum, "skip_checksum should default to false");
-    
+
     // Test with skip_checksum set to true
     let args_skip = Args {
         repo: "owner/repo".to_string(),
@@ -54,8 +54,11 @@ fn test_skip_checksum_flag() {
         config: std::path::PathBuf::from(".config/ghinstall.toml"),
         verbose: false,
     };
-    
-    assert!(args_skip.skip_checksum, "skip_checksum should be true when explicitly set");
+
+    assert!(
+        args_skip.skip_checksum,
+        "skip_checksum should be true when explicitly set"
+    );
 }
 
 #[test]
@@ -71,7 +74,7 @@ fn test_install_with_skip_checksum() {
         .args([
             "run",
             "--",
-            "owner/repo",  // A repo that might not have checksums
+            "owner/repo", // A repo that might not have checksums
             "--install-dir",
             install_path,
             "--skip-checksum",

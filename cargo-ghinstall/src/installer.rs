@@ -427,13 +427,16 @@ abc123def456  ./dist/test-binary-linux.tar.gz
             show_notes: false,
             verify_signature: false,
             no_fallback: false,
-            skip_checksum: false,  // Should verify checksums
+            skip_checksum: false, // Should verify checksums
             config: std::path::PathBuf::from("test.toml"),
             verbose: false,
         };
 
         // Test that verification is required when skip_checksum is false
-        assert!(!args_verify.skip_checksum, "Checksum verification should be enabled by default");
+        assert!(
+            !args_verify.skip_checksum,
+            "Checksum verification should be enabled by default"
+        );
 
         // Create test arguments with skip_checksum = true
         let args_skip = Args {
@@ -446,19 +449,22 @@ abc123def456  ./dist/test-binary-linux.tar.gz
             show_notes: false,
             verify_signature: false,
             no_fallback: false,
-            skip_checksum: true,  // Should skip checksums
+            skip_checksum: true, // Should skip checksums
             config: std::path::PathBuf::from("test.toml"),
             verbose: false,
         };
 
         // Test that verification is skipped when skip_checksum is true
-        assert!(args_skip.skip_checksum, "Checksum verification should be skipped when flag is set");
+        assert!(
+            args_skip.skip_checksum,
+            "Checksum verification should be skipped when flag is set"
+        );
     }
 
     #[test]
     fn test_checksum_format_variations() {
         // Test various SHA256SUMS format variations
-        
+
         // Format 1: Standard format (two spaces)
         let content1 = "abc123  file.tar.gz";
         let result = parse_checksum_for_line(content1, "file.tar.gz");
@@ -486,7 +492,7 @@ abc123def456  ./dist/test-binary-linux.tar.gz
         if parts.len() >= 2 {
             let checksum = parts[0];
             let file = parts[1..].join(" ");
-            
+
             if file == filename || file.ends_with(&format!("/{filename}")) {
                 return Some(checksum.to_string());
             }
