@@ -284,7 +284,7 @@ impl DistBuilder {
                 // For workspace projects, check each member
                 for member in &workspace.members {
                     let member_path = PathBuf::from(&member).join("Cargo.toml");
-                    if let Ok(member_manifest) = Manifest::from_path(member_path) {
+                    if let Ok(member_manifest) = Manifest::from_path(&member_path) {
                         if let Some(package) = member_manifest.package {
                             // Check if this package produces a binary
                             // By default, packages with src/main.rs produce a binary with the package name
