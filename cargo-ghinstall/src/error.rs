@@ -30,6 +30,9 @@ pub enum GhInstallError {
     #[error("Signature verification failed")]
     SignatureVerification,
 
+    #[error("Checksum verification failed")]
+    ChecksumVerification,
+
     #[error("Invalid repository format: {0}")]
     InvalidRepo(String),
 

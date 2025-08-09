@@ -55,6 +55,10 @@ pub struct Args {
     #[clap(long)]
     pub no_fallback: bool,
 
+    /// Skip SHA256 checksum verification
+    #[clap(long)]
+    pub skip_checksum: bool,
+
     /// Configuration file path
     #[clap(long, default_value = ".config/ghinstall.toml")]
     pub config: PathBuf,
