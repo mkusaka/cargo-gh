@@ -45,7 +45,13 @@ impl GitHubClient {
             {
                 Ok(release) => Ok(release),
                 Err(e) => {
-                    tracing::error!("Failed to fetch release '{}' for {}/{}: {}", tag, owner, repo, e);
+                    tracing::error!(
+                        "Failed to fetch release '{}' for {}/{}: {}",
+                        tag,
+                        owner,
+                        repo,
+                        e
+                    );
                     Err(GhInstallError::ReleaseNotFound {
                         tag: tag.to_string(),
                         owner: owner.to_string(),
@@ -64,7 +70,12 @@ impl GitHubClient {
             {
                 Ok(release) => Ok(release),
                 Err(e) => {
-                    tracing::error!("Failed to fetch latest release for {}/{}: {}", owner, repo, e);
+                    tracing::error!(
+                        "Failed to fetch latest release for {}/{}: {}",
+                        owner,
+                        repo,
+                        e
+                    );
                     Err(GhInstallError::ReleaseNotFound {
                         tag: "latest".to_string(),
                         owner: owner.to_string(),
@@ -119,7 +130,10 @@ impl GitHubClient {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await.unwrap_or_else(|_| "Unable to read error response".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error response".to_string());
             return Err(crate::error::GhInstallError::DownloadFailed {
                 asset: asset.name.clone(),
                 url: asset.url.clone(),

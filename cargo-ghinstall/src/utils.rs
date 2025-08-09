@@ -36,75 +36,66 @@ pub fn extract_archive(archive_path: &Path) -> Result<tempfile::TempDir> {
 
 /// Extract tar.gz archive
 fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
-    let file = fs::File::open(archive_path).map_err(|e| {
-        GhInstallError::ArchiveExtraction {
-            file: archive_path.display().to_string(),
-            reason: format!("Failed to open archive: {e}"),
-        }
+    let file = fs::File::open(archive_path).map_err(|e| GhInstallError::ArchiveExtraction {
+        file: archive_path.display().to_string(),
+        reason: format!("Failed to open archive: {e}"),
     })?;
     let gz_decoder = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(gz_decoder);
-    archive.unpack(dest_dir).map_err(|e| {
-        GhInstallError::ArchiveExtraction {
+    archive
+        .unpack(dest_dir)
+        .map_err(|e| GhInstallError::ArchiveExtraction {
             file: archive_path.display().to_string(),
             reason: format!("Failed to extract tar.gz: {e}"),
-        }
-    })?;
+        })?;
     Ok(())
 }
 
 /// Extract tar.xz archive
 fn extract_tar_xz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
-    let file = fs::File::open(archive_path).map_err(|e| {
-        GhInstallError::ArchiveExtraction {
-            file: archive_path.display().to_string(),
-            reason: format!("Failed to open archive: {e}"),
-        }
+    let file = fs::File::open(archive_path).map_err(|e| GhInstallError::ArchiveExtraction {
+        file: archive_path.display().to_string(),
+        reason: format!("Failed to open archive: {e}"),
     })?;
     let xz_decoder = xz2::read::XzDecoder::new(file);
     let mut archive = tar::Archive::new(xz_decoder);
-    archive.unpack(dest_dir).map_err(|e| {
-        GhInstallError::ArchiveExtraction {
+    archive
+        .unpack(dest_dir)
+        .map_err(|e| GhInstallError::ArchiveExtraction {
             file: archive_path.display().to_string(),
             reason: format!("Failed to extract tar.xz: {e}"),
-        }
-    })?;
+        })?;
     Ok(())
 }
 
 /// Extract tar.bz2 archive
 fn extract_tar_bz2(archive_path: &Path, dest_dir: &Path) -> Result<()> {
-    let file = fs::File::open(archive_path).map_err(|e| {
-        GhInstallError::ArchiveExtraction {
-            file: archive_path.display().to_string(),
-            reason: format!("Failed to open archive: {e}"),
-        }
+    let file = fs::File::open(archive_path).map_err(|e| GhInstallError::ArchiveExtraction {
+        file: archive_path.display().to_string(),
+        reason: format!("Failed to open archive: {e}"),
     })?;
     let bz2_decoder = bzip2::read::BzDecoder::new(file);
     let mut archive = tar::Archive::new(bz2_decoder);
-    archive.unpack(dest_dir).map_err(|e| {
-        GhInstallError::ArchiveExtraction {
+    archive
+        .unpack(dest_dir)
+        .map_err(|e| GhInstallError::ArchiveExtraction {
             file: archive_path.display().to_string(),
             reason: format!("Failed to extract tar.bz2: {e}"),
-        }
-    })?;
+        })?;
     Ok(())
 }
 
 /// Extract zip archive
 fn extract_zip(archive_path: &Path, dest_dir: &Path) -> Result<()> {
-    let file = fs::File::open(archive_path).map_err(|e| {
-        GhInstallError::ArchiveExtraction {
-            file: archive_path.display().to_string(),
-            reason: format!("Failed to open archive: {e}"),
-        }
+    let file = fs::File::open(archive_path).map_err(|e| GhInstallError::ArchiveExtraction {
+        file: archive_path.display().to_string(),
+        reason: format!("Failed to open archive: {e}"),
     })?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| {
-        GhInstallError::ArchiveExtraction {
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| GhInstallError::ArchiveExtraction {
             file: archive_path.display().to_string(),
             reason: format!("Failed to read zip archive: {e}"),
-        }
-    })?;
+        })?;
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;

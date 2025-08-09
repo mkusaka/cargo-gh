@@ -260,7 +260,11 @@ impl Installer {
                 .download_asset(&checksum_asset)
                 .await
                 .map_err(|e| {
-                    tracing::error!("Failed to download checksum file {}: {}", checksum_asset.name, e);
+                    tracing::error!(
+                        "Failed to download checksum file {}: {}",
+                        checksum_asset.name,
+                        e
+                    );
                     GhInstallError::DownloadFailed {
                         asset: checksum_asset.name.clone(),
                         url: checksum_asset.url.clone(),
@@ -270,21 +274,23 @@ impl Installer {
                 })?;
 
             // Read checksums from file
-            let checksum_content = std::fs::read_to_string(checksum_file.path())
-                .map_err(|e| {
-                    tracing::error!("Failed to read checksum file: {}", e);
-                    GhInstallError::Io(e)
-                })?;
+            let checksum_content = std::fs::read_to_string(checksum_file.path()).map_err(|e| {
+                tracing::error!("Failed to read checksum file: {}", e);
+                GhInstallError::Io(e)
+            })?;
 
             // Parse checksums and find the one for our asset
             let expected_checksum = self.parse_checksum(&checksum_content, &asset.name)?;
 
             // Calculate actual checksum
-            let actual_checksum = utils::calculate_sha256(file_path)
-                .map_err(|e| {
-                    tracing::error!("Failed to calculate SHA256 for {}: {}", file_path.display(), e);
-                    GhInstallError::Io(std::io::Error::other(e))
-                })?;
+            let actual_checksum = utils::calculate_sha256(file_path).map_err(|e| {
+                tracing::error!(
+                    "Failed to calculate SHA256 for {}: {}",
+                    file_path.display(),
+                    e
+                );
+                GhInstallError::Io(std::io::Error::other(e))
+            })?;
 
             // Compare checksums
             if actual_checksum.to_lowercase() != expected_checksum.to_lowercase() {
@@ -362,7 +368,11 @@ impl Installer {
                 .download_asset(&sig_asset)
                 .await
                 .map_err(|e| {
-                    tracing::error!("Failed to download signature file {}: {}", sig_asset.name, e);
+                    tracing::error!(
+                        "Failed to download signature file {}: {}",
+                        sig_asset.name,
+                        e
+                    );
                     GhInstallError::DownloadFailed {
                         asset: sig_asset.name.clone(),
                         url: sig_asset.url.clone(),
