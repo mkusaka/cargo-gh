@@ -52,7 +52,7 @@ where
     retry(backoff, || {
         attempt += 1;
         let op = operation();
-        
+
         async move {
             match op.await {
                 Ok(result) => {
@@ -83,6 +83,7 @@ where
 }
 
 /// Check if an error is retryable based on its characteristics
+#[allow(dead_code)]
 pub fn is_retryable_error(error: &anyhow::Error) -> bool {
     // Check if it's a network-related error that should be retried
     if let Some(reqwest_err) = error.downcast_ref::<reqwest::Error>() {
@@ -115,8 +116,8 @@ pub fn is_retryable_error(error: &anyhow::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_retry_on_transient_error() {

@@ -50,9 +50,9 @@ impl GitHubClient {
         let octocrab = self.octocrab.clone();
 
         let operation_name = if tag.is_some() {
-            format!("Fetching release '{}' for {}/{}", tag.unwrap(), owner, repo)
+            format!("Fetching release '{}' for {owner}/{repo}", tag.unwrap())
         } else {
-            format!("Fetching latest release for {}/{}", owner, repo)
+            format!("Fetching latest release for {owner}/{repo}")
         };
 
         with_retry(&operation_name, &self.retry_config, || {
@@ -85,7 +85,9 @@ impl GitHubClient {
         .map_err(|e| {
             tracing::error!("{}: {}", operation_name, e);
             GhInstallError::ReleaseNotFound {
-                tag: tag.map(|t| t.to_string()).unwrap_or_else(|| "latest".to_string()),
+                tag: tag
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|| "latest".to_string()),
                 owner: owner.to_string(),
                 repo: repo.to_string(),
             }
@@ -171,7 +173,7 @@ impl GitHubClient {
                         .text()
                         .await
                         .unwrap_or_else(|_| "Unable to read error response".to_string());
-                    
+
                     // Return as non-retryable error for client errors (4xx)
                     if status.is_client_error() {
                         return Err(anyhow::anyhow!(
@@ -180,7 +182,7 @@ impl GitHubClient {
                             error_text
                         ));
                     }
-                    
+
                     // Return as retryable error for server errors (5xx)
                     return Err(anyhow::anyhow!(
                         "Download failed with status {}: {} (retrying...)",
@@ -194,14 +196,15 @@ impl GitHubClient {
                     .suffix(ext)
                     .tempfile()
                     .map_err(|e| anyhow::anyhow!("Failed to create temp file: {}", e))?;
-                
+
                 let mut stream = response.bytes_stream();
 
                 use futures_util::StreamExt;
                 use std::io::Write;
 
                 while let Some(chunk) = stream.next().await {
-                    let chunk = chunk.map_err(|e| anyhow::anyhow!("Failed to read chunk: {}", e))?;
+                    let chunk =
+                        chunk.map_err(|e| anyhow::anyhow!("Failed to read chunk: {}", e))?;
                     temp_file
                         .write_all(&chunk)
                         .map_err(|e| anyhow::anyhow!("Failed to write to temp file: {}", e))?;
