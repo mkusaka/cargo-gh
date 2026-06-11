@@ -3,8 +3,28 @@ name: CI
 on:
   push:
     branches: [ main, master, feat/* ]
+    paths-ignore:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/scripts/**"
+      - ".github/ghalint.y*ml"
+      - ".github/zizmor.y*ml"
+      - ".pinact.y*ml"
+      - "renovate.json"
+      - "renovate.json5"
+      - "zizmor.y*ml"
   pull_request:
     branches: [ main, master ]
+    paths-ignore:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/scripts/**"
+      - ".github/ghalint.y*ml"
+      - ".github/zizmor.y*ml"
+      - ".pinact.y*ml"
+      - "renovate.json"
+      - "renovate.json5"
+      - "zizmor.y*ml"
 
 permissions:
   contents: read

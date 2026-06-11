@@ -7,6 +7,16 @@ on:
       - '*.*.*'    # Direct version tags (1.0.0, 2.1.3, etc.)
     branches:
       - '**'       # All branches for continuous releases
+    paths-ignore:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/scripts/**"
+      - ".github/ghalint.y*ml"
+      - ".github/zizmor.y*ml"
+      - ".pinact.y*ml"
+      - "renovate.json"
+      - "renovate.json5"
+      - "zizmor.y*ml"
   workflow_dispatch:  # Allow manual trigger
 
 permissions:
