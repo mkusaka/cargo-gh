@@ -28,5 +28,5 @@ directories = "5.0"
 sha2 = "0.10"
 hex = "0.4"
 tempfile = "3.10"
-git2 = { version = "0.18", features = ["vendored-openssl"] }
+git2 = { version = "0.20", features = ["vendored-openssl"] }
 cargo-manifest = "0.15"
