@@ -541,7 +541,11 @@ cargo ghinstall {}/{}@{}
     /// Build binaries for a specific target
     async fn build_for_target(&self, target: &str) -> GhResult<Vec<PathBuf>> {
         let mut cmd = Command::new("cargo");
-        cmd.arg("build").arg("--target").arg(target);
+        cmd.arg("build")
+            .arg("--target")
+            .arg(target)
+            .arg("--target-dir")
+            .arg("target");
 
         // Add profile
         let profile = self.args.profile();
