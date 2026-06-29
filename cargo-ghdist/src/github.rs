@@ -271,16 +271,17 @@ impl GitHubClient {
         release_id: u64,
         asset_name: &str,
     ) -> Result<Option<u64>> {
-        // Get all releases and find the one with matching ID
-        let releases = self
+        // Get all releases and find the one with matching ID.
+        let page = self
             .octocrab
             .repos(owner, repo)
             .releases()
             .list()
+            .per_page(100)
             .send()
             .await?;
 
-        for release in releases {
+        for release in self.octocrab.all_pages(page).await? {
             if release.id.0 == release_id {
                 for asset in &release.assets {
                     if asset.name == asset_name {
