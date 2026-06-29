@@ -210,18 +210,11 @@ impl Installer {
             }
         } else {
             // Install default binary (matching repo name or first executable)
-            let default_exe = executables
-                .iter()
-                .find(|p| {
-                    p.file_name()
-                        .and_then(|n| n.to_str())
-                        .map(|n| n.contains(default_name))
-                        .unwrap_or(false)
-                })
-                .or_else(|| executables.first());
-
-            if let Some(exe_path) = default_exe {
-                self.install_binary(exe_path, &install_dir, Some(default_name))?;
+            if let Some((exe_path, rename_to_default)) =
+                Self::select_default_executable(&executables, default_name)
+            {
+                let install_name = rename_to_default.then_some(default_name);
+                self.install_binary(exe_path, &install_dir, install_name)?;
             } else {
                 return Err(GhInstallError::NoExecutablesFound {
                     archive: extracted_dir.display().to_string(),
@@ -231,6 +224,22 @@ impl Installer {
         }
 
         Ok(())
+    }
+
+    fn select_default_executable<'a>(
+        executables: &'a [std::path::PathBuf],
+        default_name: &str,
+    ) -> Option<(&'a std::path::PathBuf, bool)> {
+        executables
+            .iter()
+            .find(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n.contains(default_name))
+                    .unwrap_or(false)
+            })
+            .map(|path| (path, true))
+            .or_else(|| executables.first().map(|path| (path, false)))
     }
 
     fn install_binary(&self, source: &Path, install_dir: &Path, name: Option<&str>) -> Result<()> {
@@ -484,6 +493,34 @@ mod tests {
         }
 
         assert!(dest_file.exists());
+    }
+
+    #[test]
+    fn test_select_default_executable_preserves_fallback_name() {
+        let executables = vec![
+            std::path::PathBuf::from("rg"),
+            std::path::PathBuf::from("other"),
+        ];
+
+        let (selected, rename_to_default) =
+            Installer::select_default_executable(&executables, "ripgrep").unwrap();
+
+        assert_eq!(selected.file_name().unwrap(), "rg");
+        assert!(!rename_to_default);
+    }
+
+    #[test]
+    fn test_select_default_executable_renames_matching_binary() {
+        let executables = vec![
+            std::path::PathBuf::from("helper"),
+            std::path::PathBuf::from("ripgrep"),
+        ];
+
+        let (selected, rename_to_default) =
+            Installer::select_default_executable(&executables, "ripgrep").unwrap();
+
+        assert_eq!(selected.file_name().unwrap(), "ripgrep");
+        assert!(rename_to_default);
     }
 
     #[test]
