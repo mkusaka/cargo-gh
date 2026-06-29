@@ -95,15 +95,26 @@ impl Installer {
 
         // Find matching asset
         let target = self.args.target();
-        let asset = GitHubClient::find_asset(&release, &target, self.args.bin.as_deref())
-            .ok_or_else(|| {
+        let asset = match GitHubClient::find_asset(&release, &target, self.args.bin.as_deref()) {
+            Some(asset) => asset,
+            None => {
+                if !self.args.no_fallback {
+                    tracing::warn!(
+                        "No matching release asset found for target {}. Falling back to cargo install",
+                        target
+                    );
+                    return self
+                        .fallback_cargo_install(&owner, &repo, tag.as_deref())
+                        .await;
+                }
+
                 let available_assets = release
                     .assets
                     .iter()
                     .map(|a| a.name.as_str())
                     .collect::<Vec<_>>()
                     .join(", ");
-                GhInstallError::AssetNotFound {
+                let error = GhInstallError::AssetNotFound {
                     target: target.clone(),
                     release_tag: release.tag_name.clone(),
                     available: if available_assets.is_empty() {
@@ -111,8 +122,10 @@ impl Installer {
                     } else {
                         available_assets
                     },
-                }
-            })?;
+                };
+                return Err(error.into());
+            }
+        };
 
         // Download asset
         let temp_file = self.github_client.download_asset(&asset).await?;
