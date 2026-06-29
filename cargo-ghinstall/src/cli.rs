@@ -47,7 +47,7 @@ pub struct Args {
     #[clap(long)]
     pub show_notes: bool,
 
-    /// Verify GPG signature if .sig asset is available
+    /// Require GPG signature verification (currently unsupported and fails safely)
     #[clap(long)]
     pub verify_signature: bool,
 

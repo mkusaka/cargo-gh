@@ -91,7 +91,7 @@ cargo ghinstall owner/repo \
 | `-T, --target <TRIPLE>` | Platform target (e.g., `aarch64-apple-darwin`) | Host platform |
 | `-d, --install-dir <DIR>` | Installation directory | `~/.cargo/bin` |
 | `--show-notes` | Display release notes | Off |
-| `--verify-signature` | Verify GPG signature if `.sig` asset exists | Off |
+| `--verify-signature` | Require GPG signature verification (currently unsupported and fails safely) | Off |
 | `--no-fallback` | Disable fallback to `cargo install --git` | Off |
 | `--config <FILE>` | Configuration file path | `~/.config/ghinstall.toml` |
 | `--verbose` | Enable verbose output | Off |
@@ -108,7 +108,7 @@ timeout = 30  # HTTP timeout in seconds
 [repo."owner/repo"]
 bin = "specific-binary"
 targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
-verify-signature = true
+# verify-signature = true  # currently unsupported; enabling this fails safely
 ```
 
 ### Behavior
@@ -207,7 +207,7 @@ repo = "your-crate"
 Set the `GITHUB_TOKEN` environment variable or use the `--github-token` option:
 
 ```bash
-export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+export GITHUB_TOKEN="<redacted>"
 cargo ghdist
 ```
 
