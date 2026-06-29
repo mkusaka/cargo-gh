@@ -33,6 +33,16 @@ fn find_workspace_manifest() -> Result<Manifest> {
     anyhow::bail!("No workspace manifest found")
 }
 
+fn sanitize_path_component(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| match ch {
+            '/' | '\\' => '-',
+            _ => ch,
+        })
+        .collect()
+}
+
 pub struct DistBuilder {
     args: Args,
     #[allow(dead_code)]
@@ -72,7 +82,8 @@ impl DistBuilder {
         tracing::info!("Repository: {}/{}", owner, repo);
 
         // Create output directory
-        let output_dir = PathBuf::from(format!("target/dist/{tag}"));
+        let dist_tag = sanitize_path_component(&tag);
+        let output_dir = PathBuf::from("target").join("dist").join(&dist_tag);
         fs::create_dir_all(&output_dir)?;
 
         // Build for each target
@@ -83,7 +94,7 @@ impl DistBuilder {
             match self.build_for_target(&target).await {
                 Ok(binaries) => {
                     // Create archive for this target
-                    let archive_name = format!("{repo}-{target}-{tag}");
+                    let archive_name = format!("{repo}-{target}-{dist_tag}");
                     let archive_path = packager::create_archive(
                         &binaries,
                         &output_dir,
@@ -698,6 +709,14 @@ mod tests {
         CWD_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    #[test]
+    fn test_sanitize_path_component() {
+        assert_eq!(
+            sanitize_path_component("release/v1.0.0\\build"),
+            "release-v1.0.0-build"
+        );
     }
 
     #[test]
