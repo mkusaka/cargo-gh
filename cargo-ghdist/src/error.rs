@@ -30,6 +30,9 @@ pub enum GhDistError {
     #[error("Release creation failed: {0}")]
     ReleaseCreation(String),
 
+    #[error("Release update failed: {0}")]
+    ReleaseUpdate(String),
+
     #[error("Asset upload failed: {0}")]
     AssetUpload(String),
 

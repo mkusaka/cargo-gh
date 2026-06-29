@@ -57,7 +57,69 @@ impl GitHubClient {
         {
             Ok(release) => {
                 tracing::info!("Release {} already exists, will update it", tag);
-                Ok(release)
+                let result = match (target_commitish, body) {
+                    (Some(target), Some(body_text)) => {
+                        self.octocrab
+                            .repos(owner, repo)
+                            .releases()
+                            .update(release.id.0)
+                            .tag_name(tag)
+                            .draft(draft)
+                            .name(tag)
+                            .target_commitish(target)
+                            .body(body_text)
+                            .send()
+                            .await
+                    }
+                    (Some(target), None) => {
+                        self.octocrab
+                            .repos(owner, repo)
+                            .releases()
+                            .update(release.id.0)
+                            .tag_name(tag)
+                            .draft(draft)
+                            .name(tag)
+                            .target_commitish(target)
+                            .send()
+                            .await
+                    }
+                    (None, Some(body_text)) => {
+                        self.octocrab
+                            .repos(owner, repo)
+                            .releases()
+                            .update(release.id.0)
+                            .tag_name(tag)
+                            .draft(draft)
+                            .name(tag)
+                            .body(body_text)
+                            .send()
+                            .await
+                    }
+                    (None, None) => {
+                        self.octocrab
+                            .repos(owner, repo)
+                            .releases()
+                            .update(release.id.0)
+                            .tag_name(tag)
+                            .draft(draft)
+                            .name(tag)
+                            .send()
+                            .await
+                    }
+                };
+
+                match result {
+                    Ok(release) => {
+                        tracing::info!("Successfully updated release: {}", tag);
+                        Ok(release)
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to update release {}: {:?}", tag, e);
+                        Err(GhDistError::ReleaseUpdate(format!(
+                            "Failed to update release {tag}: {e}"
+                        )))
+                    }
+                }
             }
             Err(e) => {
                 // Create new release
