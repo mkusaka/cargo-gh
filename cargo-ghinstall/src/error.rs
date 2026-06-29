@@ -38,6 +38,9 @@ pub enum GhInstallError {
     #[error("Signature verification failed for {file}. Signature file: {sig_file}")]
     SignatureVerification { file: String, sig_file: String },
 
+    #[error("Signature verification is not implemented for {file}. Refusing to trust signature file: {sig_file}")]
+    SignatureVerificationUnsupported { file: String, sig_file: String },
+
     #[error("Checksum verification failed for {file}: expected {expected}, got {actual}")]
     ChecksumVerification {
         file: String,

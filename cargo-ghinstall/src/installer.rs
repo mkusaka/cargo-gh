@@ -394,35 +394,10 @@ impl Installer {
 
         if let Some(sig_asset) = sig_asset {
             tracing::info!("Found signature file: {}", sig_asset.name);
-
-            // Download signature file
-            let sig_asset = ReleaseAsset {
-                name: sig_asset.name.clone(),
-                url: sig_asset.browser_download_url.to_string(),
-                size: sig_asset.size as u64,
-            };
-
-            let _sig_file = self
-                .github_client
-                .download_asset(&sig_asset)
-                .await
-                .map_err(|e| {
-                    tracing::error!(
-                        "Failed to download signature file {}: {}",
-                        sig_asset.name,
-                        e
-                    );
-                    GhInstallError::DownloadFailed {
-                        asset: sig_asset.name.clone(),
-                        url: sig_asset.url.clone(),
-                        status: 0,
-                        message: e.to_string(),
-                    }
-                })?;
-
-            // TODO: Implement actual GPG verification
-            tracing::warn!("Signature verification not yet implemented");
-            Ok(())
+            Err(GhInstallError::SignatureVerificationUnsupported {
+                file: asset.name.clone(),
+                sig_file: sig_asset.name.clone(),
+            })
         } else {
             Err(GhInstallError::SignatureVerification {
                 file: asset.name.clone(),
