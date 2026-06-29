@@ -33,8 +33,8 @@
 //!
 //! ## Configuration
 //!
-//! Configuration can be specified in `~/.config/ghinstall.toml` or
-//! `.config/ghinstall.toml` in your project directory.
+//! Configuration defaults to `~/.config/ghinstall.toml`; pass `--config`
+//! to use a project-local file.
 
 /// Command-line interface definitions and argument parsing
 pub mod cli;

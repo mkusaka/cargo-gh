@@ -60,7 +60,7 @@ pub struct Args {
     pub skip_checksum: bool,
 
     /// Configuration file path
-    #[clap(long, default_value = ".config/ghinstall.toml")]
+    #[clap(long, default_value = "~/.config/ghinstall.toml")]
     pub config: PathBuf,
 
     /// Enable verbose output
@@ -110,17 +110,15 @@ impl Args {
 
     /// Get the installation directory as PathBuf, expanding ~
     pub fn install_dir(&self) -> PathBuf {
-        let path = &self.install_dir;
-        if path.starts_with("~") {
-            if let Some(home) =
-                directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf())
-            {
-                let rest = path.strip_prefix("~").unwrap_or(path);
-                let rest = rest.strip_prefix('/').unwrap_or(rest);
-                return home.join(rest);
-            }
-        }
-        PathBuf::from(path)
+        expand_tilde(&self.install_dir)
+    }
+
+    /// Get the configuration file path as PathBuf, expanding ~
+    pub fn config_path(&self) -> PathBuf {
+        self.config
+            .to_str()
+            .map(expand_tilde)
+            .unwrap_or_else(|| self.config.clone())
     }
 
     /// Get the target triple, defaulting to current platform
@@ -142,4 +140,15 @@ impl Args {
             .to_string()
         })
     }
+}
+
+fn expand_tilde(path: &str) -> PathBuf {
+    if path.starts_with("~") {
+        if let Some(home) = directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf()) {
+            let rest = path.strip_prefix("~").unwrap_or(path);
+            let rest = rest.strip_prefix('/').unwrap_or(rest);
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(path)
 }

@@ -14,6 +14,7 @@ pub struct Config {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DefaultConfig {
+    #[serde(alias = "install-dir")]
     #[serde(default = "default_install_dir")]
     pub install_dir: String,
 
@@ -34,6 +35,7 @@ impl Default for DefaultConfig {
 pub struct RepoConfig {
     pub bin: Option<String>,
     pub targets: Option<Vec<String>>,
+    #[serde(alias = "verify-signature")]
     #[serde(default)]
     pub verify_signature: bool,
 }
@@ -105,13 +107,13 @@ mod tests {
 
         let config_content = r#"
 [default]
-install_dir = "/usr/local/bin"
+install-dir = "/usr/local/bin"
 timeout = 60
 
 [repo."owner/repo"]
 bin = "mybin"
 targets = ["x86_64-unknown-linux-gnu"]
-verify_signature = true
+verify-signature = true
 "#;
 
         fs::write(&config_path, config_content).unwrap();

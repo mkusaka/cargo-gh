@@ -288,6 +288,29 @@ fn test_install_dir_expansion() {
 }
 
 #[test]
+fn test_config_path_expansion() {
+    let args = Args {
+        repo: "owner/repo".to_string(),
+        tag: None,
+        bin: None,
+        bins: false,
+        target: None,
+        install_dir: "~/.cargo/bin".to_string(),
+        show_notes: false,
+        verify_signature: false,
+        no_fallback: false,
+        skip_checksum: false,
+        config: std::path::PathBuf::from("~/.config/ghinstall.toml"),
+        verbose: false,
+        max_retries: 3,
+        no_retry: false,
+    };
+
+    let config_path = args.config_path();
+    assert!(!config_path.to_string_lossy().starts_with("~"));
+}
+
+#[test]
 fn test_install_dir_absolute_path() {
     let args = Args {
         repo: "owner/repo".to_string(),

@@ -222,11 +222,12 @@ fn test_config_file_loading() {
 
     // Create a test configuration file
     let config_content = r#"
-install_dir = "/custom/install/path"
+[default]
+install-dir = "/custom/install/path"
 
 [repo."test/repo"]
 bin = "test-binary"
-target = "x86_64-unknown-linux-gnu"
+targets = ["x86_64-unknown-linux-gnu"]
 "#;
 
     fs::write(&config_path, config_content).expect("Failed to write config");
