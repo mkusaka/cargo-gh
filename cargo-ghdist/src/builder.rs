@@ -666,7 +666,34 @@ cargo ghinstall {}/{}@{}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard};
     use tempfile::tempdir;
+
+    static CWD_LOCK: Mutex<()> = Mutex::new(());
+
+    struct CurrentDirGuard {
+        original: PathBuf,
+    }
+
+    impl CurrentDirGuard {
+        fn change_to(path: &Path) -> Self {
+            let original = std::env::current_dir().unwrap();
+            std::env::set_current_dir(path).unwrap();
+            Self { original }
+        }
+    }
+
+    impl Drop for CurrentDirGuard {
+        fn drop(&mut self) {
+            let _ = std::env::set_current_dir(&self.original);
+        }
+    }
+
+    fn lock_current_dir() -> MutexGuard<'static, ()> {
+        CWD_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 
     #[test]
     fn test_is_binary() {
@@ -704,11 +731,9 @@ mod tests {
 
     #[test]
     fn test_get_package_version_from_package() {
+        let _cwd_lock = lock_current_dir();
         let temp_dir = tempdir().unwrap();
-        let original_dir = std::env::current_dir().unwrap();
-
-        // Change to temp directory
-        std::env::set_current_dir(&temp_dir).unwrap();
+        let _cwd_guard = CurrentDirGuard::change_to(temp_dir.path());
 
         // Create a simple Cargo.toml with version in package
         let cargo_toml = r#"
@@ -729,18 +754,13 @@ edition = "2021"
         } else {
             panic!("Expected local version");
         }
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
     fn test_get_package_version_from_workspace() {
+        let _cwd_lock = lock_current_dir();
         let temp_dir = tempdir().unwrap();
-        let original_dir = std::env::current_dir().unwrap();
-
-        // Change to temp directory
-        std::env::set_current_dir(&temp_dir).unwrap();
+        let _cwd_guard = CurrentDirGuard::change_to(temp_dir.path());
 
         // Create a workspace Cargo.toml
         let workspace_toml = r#"[workspace]
@@ -791,18 +811,13 @@ edition.workspace = true
             }
             _ => panic!("Expected inherited version"),
         }
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
     fn test_get_package_version_from_workspace_root() {
+        let _cwd_lock = lock_current_dir();
         let temp_dir = tempdir().unwrap();
-        let original_dir = std::env::current_dir().unwrap();
-
-        // Change to temp directory
-        std::env::set_current_dir(&temp_dir).unwrap();
+        let _cwd_guard = CurrentDirGuard::change_to(temp_dir.path());
 
         // Create a workspace Cargo.toml with version in workspace.package
         let workspace_toml = r#"[workspace]
@@ -834,18 +849,13 @@ repository = "https://github.com/test/test"
             // cargo-manifest might not parse pure workspace manifests correctly
             // This is okay for our use case since we handle both cases in the actual code
         }
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
     fn test_get_tag_with_hash_option() {
+        let _cwd_lock = lock_current_dir();
         let temp_dir = tempdir().unwrap();
-        let original_dir = std::env::current_dir().unwrap();
-
-        // Change to temp directory
-        std::env::set_current_dir(&temp_dir).unwrap();
+        let _cwd_guard = CurrentDirGuard::change_to(temp_dir.path());
 
         // Initialize git repo
         let repo = Repository::init(".").unwrap();
@@ -889,18 +899,13 @@ version = "0.5.0"
 
         assert!(tag.starts_with("0.5.0-"));
         assert_eq!(tag.len(), "0.5.0-".len() + 8);
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
     fn test_get_binary_info() {
+        let _cwd_lock = lock_current_dir();
         let temp_dir = tempdir().unwrap();
-        let original_dir = std::env::current_dir().unwrap();
-
-        // Change to temp directory
-        std::env::set_current_dir(&temp_dir).unwrap();
+        let _cwd_guard = CurrentDirGuard::change_to(temp_dir.path());
 
         // Create a workspace with two members
         let workspace_toml = r#"[workspace]
@@ -959,18 +964,13 @@ edition.workspace = true
         assert_eq!(found_binaries.len(), 2);
         assert!(found_binaries.contains(&"cargo-ghinstall".to_string()));
         assert!(found_binaries.contains(&"cargo-ghdist".to_string()));
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
     fn test_get_tag_without_hash_option_fails() {
+        let _cwd_lock = lock_current_dir();
         let temp_dir = tempdir().unwrap();
-        let original_dir = std::env::current_dir().unwrap();
-
-        // Change to temp directory
-        std::env::set_current_dir(&temp_dir).unwrap();
+        let _cwd_guard = CurrentDirGuard::change_to(temp_dir.path());
 
         // Initialize git repo without tags
         let repo = Repository::init(".").unwrap();
@@ -1023,8 +1023,5 @@ version = "1.0.0""#,
 
         // Should not find any tags
         assert!(found_tag.is_none());
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
     }
 }
