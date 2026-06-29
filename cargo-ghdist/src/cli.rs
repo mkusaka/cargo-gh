@@ -36,15 +36,15 @@ pub struct GhdistCli {
     pub targets: Option<Vec<String>>,
 
     /// Archive format (tgz or zip)
-    #[clap(short, long, default_value = "tgz", global = true)]
-    pub format: ArchiveFormat,
+    #[clap(short, long, global = true)]
+    pub format: Option<ArchiveFormat>,
 
     /// Create as draft release
     #[clap(long, global = true)]
     pub draft: bool,
 
     /// Skip cargo publish step
-    #[clap(long, default_value_t = true, global = true)]
+    #[clap(long, global = true)]
     pub skip_publish: bool,
 
     /// Don't generate checksum files (SHA256SUMS)
@@ -73,8 +73,8 @@ pub struct GhdistCli {
     pub bins: Option<Vec<String>>,
 
     /// Cargo build profile (release, debug, etc.)
-    #[clap(long, default_value = "release", global = true)]
-    pub profile: String,
+    #[clap(long, global = true)]
+    pub profile: Option<String>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -101,7 +101,7 @@ pub struct Args {
     pub tag: Option<String>,
     pub hash: bool,
     pub targets: Option<Vec<String>>,
-    pub format: ArchiveFormat,
+    pub format: Option<ArchiveFormat>,
     pub draft: bool,
     pub skip_publish: bool,
     pub no_checksum: bool,
@@ -111,7 +111,7 @@ pub struct Args {
     pub repository: Option<String>,
     pub github_token: Option<String>,
     pub bins: Option<Vec<String>>,
-    pub profile: String,
+    pub profile: Option<String>,
 }
 
 impl From<GhdistCli> for Args {
@@ -134,7 +134,7 @@ impl From<GhdistCli> for Args {
     }
 }
 
-#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum ArchiveFormat {
     Tgz,
     Zip,
@@ -158,6 +158,16 @@ impl Args {
                 "aarch64-unknown-linux-gnu".to_string(),
             ]
         })
+    }
+
+    /// Get the archive format, using the default if not specified
+    pub fn archive_format(&self) -> ArchiveFormat {
+        self.format.unwrap_or(ArchiveFormat::Tgz)
+    }
+
+    /// Get the cargo build profile, using the default if not specified
+    pub fn profile(&self) -> &str {
+        self.profile.as_deref().unwrap_or("release")
     }
 
     /// Parse repository from argument or Cargo.toml

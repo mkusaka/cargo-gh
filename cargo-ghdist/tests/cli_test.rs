@@ -6,7 +6,7 @@ fn test_targets_default() {
         tag: None,
         hash: false,
         targets: None,
-        format: ArchiveFormat::Tgz,
+        format: Some(ArchiveFormat::Tgz),
         draft: false,
         skip_publish: true,
         no_checksum: false,
@@ -15,7 +15,7 @@ fn test_targets_default() {
         repository: Some("owner/repo".to_string()),
         github_token: None,
         bins: None,
-        profile: "release".to_string(),
+        profile: Some("release".to_string()),
     };
 
     let targets = args.targets();
@@ -33,7 +33,7 @@ fn test_targets_override() {
             "x86_64-apple-darwin".to_string(),
             "aarch64-apple-darwin".to_string(),
         ]),
-        format: ArchiveFormat::Tgz,
+        format: Some(ArchiveFormat::Tgz),
         draft: false,
         skip_publish: true,
         no_checksum: false,
@@ -42,7 +42,7 @@ fn test_targets_override() {
         repository: Some("owner/repo".to_string()),
         github_token: None,
         bins: None,
-        profile: "release".to_string(),
+        profile: Some("release".to_string()),
     };
 
     let targets = args.targets();
@@ -57,7 +57,7 @@ fn test_parse_repository_from_arg() {
         tag: None,
         hash: false,
         targets: None,
-        format: ArchiveFormat::Tgz,
+        format: Some(ArchiveFormat::Tgz),
         draft: false,
         skip_publish: true,
         no_checksum: false,
@@ -66,7 +66,7 @@ fn test_parse_repository_from_arg() {
         repository: Some("owner/repo".to_string()),
         github_token: None,
         bins: None,
-        profile: "release".to_string(),
+        profile: Some("release".to_string()),
     };
 
     let (owner, repo) = args.parse_repository().unwrap();
@@ -80,7 +80,7 @@ fn test_parse_repository_invalid_format() {
         tag: None,
         hash: false,
         targets: None,
-        format: ArchiveFormat::Tgz,
+        format: Some(ArchiveFormat::Tgz),
         draft: false,
         skip_publish: true,
         no_checksum: false,
@@ -89,7 +89,7 @@ fn test_parse_repository_invalid_format() {
         repository: Some("invalid-format".to_string()),
         github_token: None,
         bins: None,
-        profile: "release".to_string(),
+        profile: Some("release".to_string()),
     };
 
     assert!(args.parse_repository().is_err());
@@ -107,7 +107,7 @@ fn test_profile_default() {
         tag: None,
         hash: false,
         targets: None,
-        format: ArchiveFormat::Tgz,
+        format: Some(ArchiveFormat::Tgz),
         draft: false,
         skip_publish: true,
         no_checksum: false,
@@ -116,10 +116,10 @@ fn test_profile_default() {
         repository: Some("owner/repo".to_string()),
         github_token: None,
         bins: None,
-        profile: "release".to_string(),
+        profile: Some("release".to_string()),
     };
 
-    assert_eq!(args.profile, "release");
+    assert_eq!(args.profile(), "release");
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn test_draft_mode() {
         tag: None,
         hash: false,
         targets: None,
-        format: ArchiveFormat::Tgz,
+        format: Some(ArchiveFormat::Tgz),
         draft: true,
         skip_publish: true,
         no_checksum: false,
@@ -137,7 +137,7 @@ fn test_draft_mode() {
         repository: Some("owner/repo".to_string()),
         github_token: None,
         bins: None,
-        profile: "release".to_string(),
+        profile: Some("release".to_string()),
     };
 
     assert!(args.draft);
@@ -149,7 +149,7 @@ fn test_checksum_generation() {
         tag: None,
         hash: false,
         targets: None,
-        format: ArchiveFormat::Tgz,
+        format: Some(ArchiveFormat::Tgz),
         draft: false,
         skip_publish: true,
         no_checksum: false,
@@ -158,7 +158,7 @@ fn test_checksum_generation() {
         repository: Some("owner/repo".to_string()),
         github_token: None,
         bins: None,
-        profile: "release".to_string(),
+        profile: Some("release".to_string()),
     };
 
     assert!(!args.no_checksum);
@@ -170,7 +170,7 @@ fn test_bins_filter() {
         tag: None,
         hash: false,
         targets: None,
-        format: ArchiveFormat::Tgz,
+        format: Some(ArchiveFormat::Tgz),
         draft: false,
         skip_publish: true,
         no_checksum: false,
@@ -179,7 +179,7 @@ fn test_bins_filter() {
         repository: Some("owner/repo".to_string()),
         github_token: None,
         bins: Some(vec!["bin1".to_string(), "bin2".to_string()]),
-        profile: "release".to_string(),
+        profile: Some("release".to_string()),
     };
 
     assert_eq!(args.bins.unwrap().len(), 2);

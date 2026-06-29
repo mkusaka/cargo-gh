@@ -51,7 +51,7 @@ impl DistBuilder {
         let config = Config::load(&config_path).context("Failed to load configuration")?;
 
         // Merge configuration with args
-        config.merge_with_args(&mut args);
+        config.merge_with_args(&mut args)?;
 
         let github_client = GitHubClient::new(args.github_token.clone())?;
 
@@ -88,7 +88,7 @@ impl DistBuilder {
                         &binaries,
                         &output_dir,
                         &archive_name,
-                        self.args.format,
+                        self.args.archive_format(),
                     )?;
                     all_archives.push(archive_path);
                 }
@@ -544,10 +544,11 @@ cargo ghinstall {}/{}@{}
         cmd.arg("build").arg("--target").arg(target);
 
         // Add profile
-        if self.args.profile == "release" {
+        let profile = self.args.profile();
+        if profile == "release" {
             cmd.arg("--release");
         } else {
-            cmd.arg("--profile").arg(&self.args.profile);
+            cmd.arg("--profile").arg(profile);
         }
 
         // Add specific bins if requested
@@ -586,10 +587,10 @@ cargo ghinstall {}/{}@{}
 
     /// Get the target directory for built binaries
     fn get_target_dir(&self, target: &str) -> PathBuf {
-        let profile = if self.args.profile == "release" {
+        let profile = if self.args.profile() == "release" {
             "release"
         } else {
-            &self.args.profile
+            self.args.profile()
         };
 
         PathBuf::from("target").join(target).join(profile)

@@ -225,6 +225,7 @@ fn test_target_triple_validation() {
 #[test]
 fn test_config_file_parsing() {
     let config_content = r#"
+[default]
 profile = "release"
 format = "tgz"
 targets = ["x86_64-unknown-linux-gnu"]
@@ -241,11 +242,12 @@ repo = "project"
     assert!(parsed.is_ok(), "Config should be valid TOML");
 
     if let Ok(value) = parsed {
+        let default = value.get("default").and_then(|v| v.as_table()).unwrap();
         assert_eq!(
-            value.get("profile").and_then(|v| v.as_str()),
+            default.get("profile").and_then(|v| v.as_str()),
             Some("release")
         );
-        assert_eq!(value.get("format").and_then(|v| v.as_str()), Some("tgz"));
+        assert_eq!(default.get("format").and_then(|v| v.as_str()), Some("tgz"));
     }
 }
 
