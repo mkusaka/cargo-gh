@@ -7,13 +7,13 @@ use std::path::Path;
 pub struct GitHubClient {
     octocrab: Octocrab,
     http_client: Client,
+    token: Option<String>,
 }
 
 impl GitHubClient {
     pub fn new(token: Option<String>) -> Result<Self> {
-        let octocrab = if let Some(token) = token {
-            Octocrab::builder().personal_token(token).build()?
-        } else if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        let token = token.or_else(|| std::env::var("GITHUB_TOKEN").ok());
+        let octocrab = if let Some(token) = token.clone() {
             Octocrab::builder().personal_token(token).build()?
         } else {
             Octocrab::builder().build()?
@@ -27,6 +27,7 @@ impl GitHubClient {
         Ok(Self {
             octocrab,
             http_client,
+            token,
         })
     }
 
@@ -256,8 +257,8 @@ impl GitHubClient {
     }
 
     /// Get the GitHub token from the client
-    fn get_token(&self) -> Result<String> {
-        std::env::var("GITHUB_TOKEN").map_err(|_| {
+    fn get_token(&self) -> Result<&str> {
+        self.token.as_deref().ok_or_else(|| {
             anyhow::anyhow!("GitHub token not found. Set GITHUB_TOKEN environment variable")
         })
     }
@@ -305,5 +306,17 @@ pub fn get_content_type(path: &Path) -> &'static str {
         "bz2" => "application/x-bzip2",
         "txt" => "text/plain",
         _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn explicit_token_is_available_for_asset_requests() {
+        let client = GitHubClient::new(Some("cli-token".to_string())).unwrap();
+
+        assert_eq!(client.get_token().unwrap(), "cli-token");
     }
 }
