@@ -632,6 +632,14 @@ cargo ghinstall {}/{}@{}
     /// Find binary files in a directory
     fn find_binaries(&self, dir: &Path) -> Result<Vec<PathBuf>> {
         let mut binaries = Vec::new();
+        let expected_bins = if self.args.bins.is_none() {
+            self.get_binary_info()
+                .ok()
+                .map(|bins| bins.into_iter().map(|(name, _)| name).collect::<Vec<_>>())
+                .filter(|bins| !bins.is_empty())
+        } else {
+            None
+        };
 
         if !dir.exists() {
             return Ok(binaries);
@@ -643,9 +651,14 @@ cargo ghinstall {}/{}@{}
 
             if path.is_file() && self.is_binary(&path)? {
                 // Filter by requested bins if specified
+                let file_name = path.file_stem().and_then(|n| n.to_str()).unwrap_or("");
+
                 if let Some(bins) = &self.args.bins {
-                    let file_name = path.file_stem().and_then(|n| n.to_str()).unwrap_or("");
                     if !bins.iter().any(|b| b == file_name) {
+                        continue;
+                    }
+                } else if let Some(expected_bins) = &expected_bins {
+                    if !expected_bins.iter().any(|b| b == file_name) {
                         continue;
                     }
                 }
@@ -727,6 +740,24 @@ mod tests {
         CWD_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn default_test_args() -> Args {
+        Args {
+            tag: None,
+            hash: false,
+            targets: None,
+            format: None,
+            draft: false,
+            skip_publish: true,
+            no_checksum: false,
+            config: None,
+            verbose: false,
+            repository: None,
+            github_token: None,
+            bins: None,
+            profile: None,
+        }
     }
 
     #[test]
@@ -1031,6 +1062,65 @@ edition.workspace = true
         assert_eq!(found_binaries.len(), 2);
         assert!(found_binaries.contains(&"cargo-ghinstall".to_string()));
         assert!(found_binaries.contains(&"cargo-ghdist".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_find_binaries_filters_stale_binaries() {
+        let _cwd_lock = lock_current_dir();
+        let temp_dir = tempdir().unwrap();
+        let _cwd_guard = CurrentDirGuard::change_to(temp_dir.path());
+
+        fs::create_dir("src").unwrap();
+        fs::write("src/main.rs", "fn main() {}").unwrap();
+        fs::write(
+            "Cargo.toml",
+            r#"[package]
+name = "current"
+version = "1.0.0"
+edition = "2021"
+"#,
+        )
+        .unwrap();
+
+        let target_dir = temp_dir.path().join("target-bin");
+        fs::create_dir(&target_dir).unwrap();
+
+        #[cfg(windows)]
+        let (current_name, stale_name) = ("current.exe", "stale.exe");
+        #[cfg(not(windows))]
+        let (current_name, stale_name) = ("current", "stale");
+
+        let current_binary = target_dir.join(current_name);
+        let stale_binary = target_dir.join(stale_name);
+        fs::write(&current_binary, b"current").unwrap();
+        fs::write(&stale_binary, b"stale").unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mut current_perms = fs::metadata(&current_binary).unwrap().permissions();
+            current_perms.set_mode(0o755);
+            fs::set_permissions(&current_binary, current_perms).unwrap();
+
+            let mut stale_perms = fs::metadata(&stale_binary).unwrap().permissions();
+            stale_perms.set_mode(0o755);
+            fs::set_permissions(&stale_binary, stale_perms).unwrap();
+        }
+
+        let builder = DistBuilder {
+            args: default_test_args(),
+            config: Config::default(),
+            github_client: GitHubClient::new(None).unwrap(),
+        };
+
+        let binaries = builder.find_binaries(&target_dir).unwrap();
+        let binary_names = binaries
+            .iter()
+            .filter_map(|path| path.file_stem().and_then(|name| name.to_str()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(binary_names, vec!["current"]);
     }
 
     #[test]
