@@ -43,6 +43,26 @@ fn sanitize_path_component(value: &str) -> String {
         .collect()
 }
 
+fn select_previous_tag(mut tags: Vec<(i64, String)>, current_tag: &str) -> String {
+    tags.sort_by(|(left_time, left_name), (right_time, right_name)| {
+        left_time
+            .cmp(right_time)
+            .then_with(|| left_name.cmp(right_name))
+    });
+
+    if let Some(current_index) = tags.iter().position(|(_, tag)| tag == current_tag) {
+        if current_index > 0 {
+            return tags[current_index - 1].1.clone();
+        }
+
+        return "main".to_string();
+    }
+
+    tags.last()
+        .map(|(_, tag)| tag.clone())
+        .unwrap_or_else(|| "main".to_string())
+}
+
 pub struct DistBuilder {
     args: Args,
     #[allow(dead_code)]
@@ -151,7 +171,7 @@ impl DistBuilder {
             );
 
             // Get the previous tag for comparison
-            let previous_tag = self.find_previous_tag().ok();
+            let previous_tag = self.find_previous_tag(&tag).ok();
 
             // Fetch auto-generated release notes from GitHub
             match self
@@ -468,7 +488,7 @@ cargo ghinstall {}/{}@{}
                 sha,
                 owner,
                 repo_name,
-                self.find_previous_tag()
+                self.find_previous_tag(tag)
                     .unwrap_or_else(|_| "main".to_string()),
                 tag
             )
@@ -478,26 +498,24 @@ cargo ghinstall {}/{}@{}
     }
 
     /// Find the previous tag for comparison
-    fn find_previous_tag(&self) -> Result<String> {
+    fn find_previous_tag(&self, current_tag: &str) -> Result<String> {
         let repo = Repository::open(".")?;
         let mut tags = Vec::new();
 
         repo.tag_foreach(|_oid, name| {
             if let Some(tag_name) = name.strip_prefix(b"refs/tags/") {
                 if let Ok(tag_str) = std::str::from_utf8(tag_name) {
-                    tags.push(tag_str.to_string());
+                    if let Ok(tag_obj) = repo.revparse_single(tag_str) {
+                        if let Ok(commit) = tag_obj.peel_to_commit() {
+                            tags.push((commit.time().seconds(), tag_str.to_string()));
+                        }
+                    }
                 }
             }
             true
         })?;
 
-        // Sort tags and get the second-to-last one
-        tags.sort();
-        if tags.len() >= 2 {
-            Ok(tags[tags.len() - 2].clone())
-        } else {
-            Ok("main".to_string())
-        }
+        Ok(select_previous_tag(tags, current_tag))
     }
 
     /// Get tag from args or detect from git
@@ -717,6 +735,31 @@ mod tests {
             sanitize_path_component("release/v1.0.0\\build"),
             "release-v1.0.0-build"
         );
+    }
+
+    #[test]
+    fn test_select_previous_tag_uses_tag_time() {
+        let tags = vec![
+            (100, "v1.8.0".to_string()),
+            (200, "v1.9.0".to_string()),
+            (300, "v1.10.0".to_string()),
+        ];
+
+        assert_eq!(select_previous_tag(tags, "v1.10.0"), "v1.9.0");
+    }
+
+    #[test]
+    fn test_select_previous_tag_uses_latest_when_current_is_missing() {
+        let tags = vec![(100, "v1.8.0".to_string()), (200, "v1.9.0".to_string())];
+
+        assert_eq!(select_previous_tag(tags, "v1.10.0"), "v1.9.0");
+    }
+
+    #[test]
+    fn test_select_previous_tag_returns_main_for_first_tag() {
+        let tags = vec![(100, "v1.0.0".to_string())];
+
+        assert_eq!(select_previous_tag(tags, "v1.0.0"), "main");
     }
 
     #[test]
