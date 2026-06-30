@@ -69,7 +69,7 @@ impl GitHubClient {
                         .releases()
                         .get_by_tag(&tag)
                         .await
-                        .map_err(|e| anyhow::anyhow!("Failed to fetch release: {}", e))
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch release: {e}"))
                 } else {
                     // Fetch latest release
                     octocrab
@@ -77,7 +77,7 @@ impl GitHubClient {
                         .releases()
                         .get_latest()
                         .await
-                        .map_err(|e| anyhow::anyhow!("Failed to fetch latest release: {}", e))
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch latest release: {e}"))
                 }
             }
         })
@@ -165,7 +165,7 @@ impl GitHubClient {
                     .get(&url)
                     .send()
                     .await
-                    .map_err(|e| anyhow::anyhow!("Failed to send download request: {}", e))?;
+                    .map_err(|e| anyhow::anyhow!("Failed to send download request: {e}"))?;
 
                 if !response.status().is_success() {
                     let status = response.status();
@@ -177,17 +177,13 @@ impl GitHubClient {
                     // Return as non-retryable error for client errors (4xx)
                     if status.is_client_error() {
                         return Err(anyhow::anyhow!(
-                            "Download failed with status {}: {}",
-                            status,
-                            error_text
+                            "Download failed with status {status}: {error_text}"
                         ));
                     }
 
                     // Return as retryable error for server errors (5xx)
                     return Err(anyhow::anyhow!(
-                        "Download failed with status {}: {} (retrying...)",
-                        status,
-                        error_text
+                        "Download failed with status {status}: {error_text} (retrying...)"
                     ));
                 }
 
@@ -195,7 +191,7 @@ impl GitHubClient {
                 let mut temp_file = tempfile::Builder::new()
                     .suffix(ext)
                     .tempfile()
-                    .map_err(|e| anyhow::anyhow!("Failed to create temp file: {}", e))?;
+                    .map_err(|e| anyhow::anyhow!("Failed to create temp file: {e}"))?;
 
                 let mut stream = response.bytes_stream();
 
@@ -203,11 +199,10 @@ impl GitHubClient {
                 use std::io::Write;
 
                 while let Some(chunk) = stream.next().await {
-                    let chunk =
-                        chunk.map_err(|e| anyhow::anyhow!("Failed to read chunk: {}", e))?;
+                    let chunk = chunk.map_err(|e| anyhow::anyhow!("Failed to read chunk: {e}"))?;
                     temp_file
                         .write_all(&chunk)
-                        .map_err(|e| anyhow::anyhow!("Failed to write to temp file: {}", e))?;
+                        .map_err(|e| anyhow::anyhow!("Failed to write to temp file: {e}"))?;
                 }
 
                 Ok(temp_file)
