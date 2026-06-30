@@ -81,7 +81,7 @@ jobs:
 
       - name: Install cargo-ghdist from source
         run: |
-          cargo install --path ./cargo-ghdist
+          cargo install --path ./cargo-ghdist --locked
           
       - name: Build with cargo-ghdist
         env:
@@ -145,7 +145,7 @@ jobs:
 
       - name: Install cargo-ghdist from source
         run: |
-          cargo install --path ./cargo-ghdist
+          cargo install --path ./cargo-ghdist --locked
           
       - name: Build with cargo-ghdist
         env:
@@ -196,7 +196,7 @@ jobs:
 
       - name: Install cargo-ghdist from source
         run: |
-          cargo install --path ./cargo-ghdist
+          cargo install --path ./cargo-ghdist --locked
           
       - name: Build with cargo-ghdist
         env:
@@ -247,7 +247,7 @@ jobs:
 
       - name: Install cargo-ghdist from source
         run: |
-          cargo install --path ./cargo-ghdist
+          cargo install --path ./cargo-ghdist --locked
           
       - name: Build with cargo-ghdist
         env:
@@ -298,7 +298,7 @@ jobs:
 
       - name: Install cargo-ghdist from source
         run: |
-          cargo install --path ./cargo-ghdist
+          cargo install --path ./cargo-ghdist --locked
           
       - name: Build with cargo-ghdist
         env:
@@ -500,7 +500,7 @@ jobs:
       
       - name: Install cargo-ghinstall from source
         run: |
-          cargo install --path ./cargo-ghinstall
+          cargo install --path ./cargo-ghinstall --locked
       
       - name: Test installation
         env:
